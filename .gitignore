@@ -1,20 +1,11 @@
-# Environment & secrets
+# Secrets and local handoff notes - never commit these
 .env
-.env.*
-!.env.example
-
-# Internal scratch & handoff
 HANDOFF.md
-reference.txt
 
-# Python & testing caches
+# Generated run artifacts (reports, intel cache, garak configs/output)
+reports/
+
+# Python caches
 __pycache__/
 *.py[cod]
-*$py.class
 .pytest_cache/
-
-# IDE & OS
-.vscode/
-.idea/
-.DS_Store
-Thumbs.db

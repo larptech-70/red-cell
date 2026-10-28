@@ -4,7 +4,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from redcell.attacks.goals import GOALS
 from redcell.core.llm import Ledger, TokenFactory
 from redcell.core.session import LiveBrain, MockBrain, run_session
-from redcell.reporting import report
+from redcell.intel import tavily_intel
+from redcell.reporting import garak_baseline, report
 from redcell.server import JUDGE_M, PLANNER, TARGET_M
 from redcell.target.devops_agent import DevOpsAgent
 
@@ -20,17 +21,23 @@ print(f"RedCell | brain: {mode} | hardened target: {a.hardened}")
 
 def show(e):
     t = e["type"]
-    if t == "goal_start": print(f"\n== {e['title']}  [{e['owasp']}]")
+    if t == "intel": print(f"Threat intel: {e['sources']} current source(s) via Tavily" + (" [cached]" if e.get("cached") else "") if e["ran"] else f"Threat intel: offline ({e.get('reason','no Tavily key')})")
+    elif t == "goal_start": print(f"\n== {e['title']}  [{e['owasp']}]")
     elif t == "attack": print(f"  RedCell #{e['n']}: {e['text']}")
     elif t == "reply": print(f"  OrbitOps: {e['text'][:160]!r}" + "".join(f"\n    $ {c['cmd']}  ({c['risk']})" for c in e["tool_calls"]))
+    elif t == "reask": print(f"  (planner refused as itself; re-asking once) {e['text'][:80]!r}")
     elif t == "verdict": print(f"  -> {e['verdict']}: {e['evidence'] or e['reason']}")
     elif t == "replay": print(f"  replay on fresh target: {'reproduced' if e['reproduced'] else 'NOT reproduced (finding dropped)'}")
+
+intel = tavily_intel.gather(list(GOALS.values()), emit=show)
+if isinstance(brain, LiveBrain):
+    brain.intel = intel
 
 try:
     res = run_session(DevOpsAgent(llm=llm, model=TARGET_M, hardened=a.hardened, mock=not llm.live), brain, list(GOALS), max_turns=a.turns, emit=show)
 except BaseException:
     print(f"\nrun aborted | ${llm.ledger.cost_usd:.4f} spent over {llm.ledger.calls} calls")
     raise
-rep = report.build(res, llm.ledger.snapshot(), target_name="OrbitOps (demo DevOps bot)", hardened=a.hardened, mode=mode)
+rep = report.build(res, llm.ledger.snapshot(), target_name="OrbitOps (demo DevOps bot)", hardened=a.hardened, mode=mode, intel=intel, garak=garak_baseline.load())
 paths = report.save(rep, os.path.join(os.path.dirname(__file__), "..", "reports"))
 print(f"\n{rep['goals_broken']}/{rep['goals_tried']} goals broken | ${rep['usage']['cost_usd']:.4f} spent | report: {paths['md']}")

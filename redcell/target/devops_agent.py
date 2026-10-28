@@ -72,8 +72,8 @@ class DevOpsAgent:
         return self.shell.run(cmd)
 
     def _live_turn(self) -> str:
-        for _ in range(6):  # at most 6 tool hops per turn (was 4)
-            msg = self.llm.chat(self.model, self.messages, tools=TOOLS, temperature=0.4, max_tokens=4000)  # was 2000
+        for _ in range(6):  # at most 6 tool hops per turn
+            msg = self.llm.chat(self.model, self.messages, tools=TOOLS, temperature=0.4, max_tokens=4000)
             calls = msg.get("tool_calls") or []
             self.messages.append({k: v for k, v in msg.items() if k in ("role", "content", "tool_calls")} | {"role": "assistant", "content": msg.get("content") or ""})
             if not calls:

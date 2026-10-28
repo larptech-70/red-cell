@@ -19,6 +19,7 @@ REST_CONFIG = {
         "req_template_json_object": {"message": "$INPUT"},
         "response_json": True,
         "response_json_field": "reply",
+        "request_timeout": 180,  # the live Nemotron target can be slow (multi-hop + reasoning); 20s default times out
     }}
 }
 
@@ -40,12 +41,23 @@ def run(probes: str = "promptinject,leakreplay", timeout: int = 900) -> dict:
     return parse_report("reports/garak.report.jsonl")
 
 
+def default_report_path() -> str:
+    return os.path.join(os.path.dirname(__file__), "..", "..", "reports", "garak.report.jsonl")
+
+
+def load(path: str | None = None) -> dict | None:
+    """Return the parsed baseline if garak has already been run, else None (so the report
+    shows 'not run yet' honestly instead of a fabricated number)."""
+    path = path or default_report_path()
+    return parse_report(path) if os.path.exists(path) else None
+
+
 def parse_report(path: str) -> dict:
     """Defensive parser: garak's JSONL schema varies by version, so every field is optional."""
     if not os.path.exists(path):
         return {"ran": False, "reason": f"no report at {path}", "findings": 0}
     attempts = hits = 0
-    for line in open(path):
+    for line in open(path, encoding="utf-8", errors="replace"):
         try:
             row = json.loads(line)
         except ValueError:

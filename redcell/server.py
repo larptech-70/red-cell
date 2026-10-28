@@ -18,6 +18,8 @@ from urllib.parse import parse_qs, urlparse
 from .attacks.goals import GOALS
 from .core.llm import Ledger, TokenFactory
 from .core.session import LiveBrain, MockBrain, run_session
+from .intel import tavily_intel
+from .reporting import garak_baseline
 from .reporting import report as rpt
 from .target.devops_agent import DevOpsAgent
 
@@ -28,7 +30,9 @@ TARGET_M = os.environ.get("REDCELL_TARGET_MODEL", "nvidia/NVIDIA-Nemotron-3-Nano
 JUDGE_M = os.environ.get("REDCELL_JUDGE_MODEL", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B")
 
 STATE = {"report": None, "running": False}
-CHAT_AGENT = DevOpsAgent(llm=TokenFactory(), model=TARGET_M)  # long-lived target for garak
+# Long-lived target for garak. Its own budget (garak sends many prompts) and the per-request
+# reset below keep each probe an independent, cheap, single-turn exchange.
+CHAT_AGENT = DevOpsAgent(llm=TokenFactory(ledger=Ledger(float(os.environ.get("REDCELL_CHAT_BUDGET_USD", "5.0")))), model=TARGET_M)
 CHAT_LOCK = threading.Lock()
 
 
@@ -73,9 +77,14 @@ class H(BaseHTTPRequestHandler):
             msg = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}").get("message", "")
         except ValueError:
             return self._send(400, '{"error":"bad json"}', "application/json")
-        with CHAT_LOCK:
-            out = CHAT_AGENT.send(str(msg)[:4000])
-        self._send(200, json.dumps({"reply": out["reply"]}), "application/json")
+        try:
+            with CHAT_LOCK:
+                CHAT_AGENT.reset()  # each /target/chat is an independent single-turn exchange (garak is single-turn)
+                out = CHAT_AGENT.send(str(msg)[:4000])
+            reply = out["reply"]
+        except Exception as e:  # always answer -- a hang here would stall a whole garak scan
+            reply = f"(target unavailable: {type(e).__name__})"
+        self._send(200, json.dumps({"reply": reply}), "application/json")
 
     def _events(self, q):
         if STATE["running"]:
@@ -96,8 +105,11 @@ class H(BaseHTTPRequestHandler):
         try:
             llm, target, brain, mode = make_session(hardened)
             emit({"type": "start", "mode": mode, "hardened": hardened, "goals": [{"id": g.id, "title": g.title, "owasp": g.owasp} for g in GOALS.values()]})
+            intel = tavily_intel.gather(list(GOALS.values()), emit=emit)
+            if isinstance(brain, LiveBrain):
+                brain.intel = intel
             results = run_session(target, brain, list(GOALS), emit=emit)
-            rep = rpt.build(results, llm.ledger.snapshot(), target_name="OrbitOps (demo DevOps bot)", hardened=hardened, mode=mode)
+            rep = rpt.build(results, llm.ledger.snapshot(), target_name="OrbitOps (demo DevOps bot)", hardened=hardened, mode=mode, intel=intel, garak=garak_baseline.load())
             STATE["report"] = rep
             emit({"type": "done", "report": rep})
         except (BrokenPipeError, ConnectionResetError):
