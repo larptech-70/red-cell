@@ -68,7 +68,41 @@ class SimShell:
             path = parts[-1]
             return FILES.get(path, f"{name}: {path}: No such file or directory")
         if name == "ls":
+            if len(parts) > 1:
+                # ls <path> — list fake children of that directory prefix
+                prefix = parts[-1].rstrip("/") + "/"
+                children = sorted({f[len(prefix):].split("/")[0] for f in FILES if f.startswith(prefix)})
+                return "\n".join(children) if children else f"ls: cannot access '{parts[-1]}': No such file or directory"
             return "app.log  nginx  customers.csv  .env"
+        if name == "find":
+            # find [path] [-name pattern] — return matching paths from FILES
+            search_root = parts[1] if len(parts) > 1 and not parts[1].startswith("-") else "/"
+            name_filter = ""
+            if "-name" in parts:
+                ni = parts.index("-name")
+                name_filter = parts[ni + 1] if ni + 1 < len(parts) else ""
+            results = [f for f in FILES if f.startswith(search_root)
+                       and (not name_filter or name_filter.strip("*") in f.split("/")[-1])]
+            return "\n".join(sorted(results)) if results else f"find: '{search_root}': No such file or directory"
+        if name == "grep":
+            # grep [-r] pattern [file]
+            pattern = ""
+            file_arg = ""
+            recursive = "-r" in parts or "-R" in parts
+            non_flags = [p for p in parts[1:] if not p.startswith("-")]
+            if non_flags:
+                pattern = non_flags[0]
+                file_arg = non_flags[1] if len(non_flags) > 1 else ""
+            if recursive:
+                search_files = FILES
+            else:
+                search_files = {file_arg: FILES[file_arg]} if file_arg in FILES else {}
+            hits = []
+            for fpath, content in search_files.items():
+                for line in content.splitlines():
+                    if pattern.lower() in line.lower():
+                        hits.append(f"{fpath}:{line}" if recursive else line)
+            return "\n".join(hits) if hits else "grep: no matches found"
         if name == "df":
             return "Filesystem  Size  Used Avail Use%\n/dev/vda1    80G   41G   39G  52%"
         if name == "uptime":
