@@ -48,6 +48,10 @@ h2{margin:0 0 14px;font-size:1rem;font-weight:700}
 @keyframes breach{0%{box-shadow:0 0 0 0 var(--breach)}100%{box-shadow:0 0 0 14px transparent}}
 .verdict{align-self:center;font-size:.88rem;color:var(--muted);padding:2px 10px}
 .verdict.landed{color:var(--breach);font-weight:700}
+.hint{align-self:center;font-size:.84rem;color:var(--warn);padding:4px 10px;background:var(--panel);border:1px dashed var(--line);border-radius:6px;max-width:42rem}
+.replay{align-self:center;font-size:.86rem;font-weight:600;padding:4px 12px;border-radius:6px;margin:2px 0}
+.replay.ok{color:var(--held);background:var(--held-bg);border:1px solid var(--held)}
+.replay.fail{color:var(--breach);background:var(--breach-bg);border:1px solid var(--breach)}
 .divider{align-self:stretch;margin:14px 0 2px;padding-top:12px;border-top:1px solid var(--line);font-weight:700}
 .empty{color:var(--muted);max-width:30rem}
 .finding{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--breach);border-radius:6px;padding:12px 14px;margin-bottom:12px}
@@ -113,7 +117,19 @@ function handle(e){
   else if(e.type==='reply'){
     const m=el('div','msg tgt');m.append(el('small',null,'OrbitOps'));m.append(document.createTextNode(e.text));feed.append(m);
     e.tool_calls.forEach(c=>feed.append(el('div','sh '+c.risk,'$ '+c.cmd+(c.risk==='dangerous'?'   <- '+c.why:''))))}
-  else if(e.type==='verdict'){const v=el('div','verdict '+e.verdict,e.verdict==='landed'?'Landed: '+(e.evidence||e.reason):e.verdict==='partial'?'Partly: '+e.reason:'Blocked: '+e.reason);feed.append(v)}
+  else if(e.type==='verdict'){
+    const v=el('div','verdict '+e.verdict,e.verdict==='landed'?'Landed: '+(e.evidence||e.reason):e.verdict==='partial'?'Partly: '+e.reason:'Blocked: '+e.reason);
+    feed.append(v);
+    if(e.hint){
+      const h=el('div','hint','💡 Judge note: '+e.hint);
+      feed.append(h);
+    }
+  }
+  else if(e.type==='replay'){
+    const r=el('div','replay '+(e.reproduced?'ok':'fail'),e.reproduced?'✓ Verified: Replay reproduced on fresh target':'⚠ Dropped: Replay failed on fresh target');
+    feed.append(r);
+    if(!e.reproduced) setGoal(e.goal,'held','Dropped (unverified)');
+  }
   else if(e.type==='goal_end'){setGoal(e.goal,e.landed?'landed':'held',e.landed?'Broken in '+e.turns+' turn'+(e.turns>1?'s':''):'Held for '+e.turns+' turns')}
   else if(e.type==='budget_stop'||e.type==='error'){feed.append(el('div','verdict landed',e.text))}
   else if(e.type==='done'){finish(e.report)}
@@ -122,9 +138,32 @@ function handle(e){
 function finish(r){
   es.close();$('#run').disabled=false;$('#dl').disabled=false;
   $('#tally').innerHTML=r.goals_broken+' <small>of '+r.goals_tried+' goals broken</small>';
-  const u=r.usage;$('#cost').textContent=u.calls+' model calls, '+(u.prompt_tokens+u.completion_tokens)+' tokens, $'+u.cost_usd.toFixed(4);
-  r.findings.forEach(f=>{const d=el('div','finding');d.append(el('h3',null,f.title));d.append(el('p',null,f.owasp+'. Broke in '+f.turns_to_break+' turn(s).'));d.append(el('p',null,f.evidence));d.append(el('p','fix','Fix: '+f.fix));$('#findings').append(d)});
+  const u=r.usage;
+  if(u) $('#cost').textContent=u.calls+' model calls, '+(u.prompt_tokens+u.completion_tokens)+' tokens, $'+u.cost_usd.toFixed(4);
+  $('#findings').innerHTML='';
+  r.findings.forEach(f=>{
+    const d=el('div','finding');
+    d.append(el('h3',null,f.title));
+    d.append(el('p',null,f.owasp+'. Broke in '+f.turns_to_break+' turn(s).'));
+    d.append(el('p',null,f.evidence));
+    d.append(el('p','fix','Fix: '+f.fix));
+    $('#findings').append(d);
+  });
   if(!r.findings.length)$('#findings').append(el('p','empty','Nothing got through. The hardened bot held on every goal.'));
+  const cmp=$('#cmp');
+  cmp.innerHTML='';
+  if(r.comparison && r.comparison.length){
+    r.comparison.forEach((row, i)=>{
+      const tr=document.createElement('tr');
+      row.forEach(cell=>{
+        const c=document.createElement(i===0?'th':'td');
+        c.textContent=cell;
+        tr.append(c);
+      });
+      cmp.append(tr);
+    });
+    cmp.hidden=false;
+  }
 }
 $('#dl').onclick=()=>{location.href='/report.md'};
 </script>

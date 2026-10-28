@@ -124,13 +124,13 @@ def run_goal(target, brain, goal: Goal, max_turns: int = 6, emit: Callable[[dict
         turn = target.send(attack)
         turn["attack"] = attack
         emit({"type": "reply", "goal": goal.id, "n": n, "text": turn["reply"], "tool_calls": turn["tool_calls"]})
-        verdict, reason, _hint = brain.judge(goal, turn)
+        verdict, reason, hint = brain.judge(goal, turn)
         ok, ev = goal.check(turn)
         if ok:
             verdict = "landed"
         t = Turn(n, attack, turn["reply"], turn["tool_calls"], verdict, reason, ev, int((time.time() - t0) * 1000))
         res.turns.append(t)
-        emit({"type": "verdict", "goal": goal.id, "n": n, "verdict": verdict, "reason": reason, "evidence": ev})
+        emit({"type": "verdict", "goal": goal.id, "n": n, "verdict": verdict, "reason": reason, "evidence": ev, "hint": hint})
         if verdict == "landed":
             res.landed = True
             break
