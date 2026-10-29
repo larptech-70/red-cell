@@ -89,3 +89,18 @@ def test_report_and_garak_parser(tmp_path):
     p = tmp_path / "g.jsonl"
     p.write_text('{"entry_type":"attempt","status":2,"detector_results":{"d":[0.9,0.1]}}\nnot json\n{"entry_type":"attempt","status":2,"detector_results":{"d":[0.0]}}\n')
     assert garak_baseline.parse_report(str(p)) == {"ran": True, "attempts": 2, "findings": 1, "source": str(p)}
+
+def test_titles_come_from_current_goal_definitions():
+    # The saved snapshot keeps the old title; reports must show the current one, looked up by id.
+    import json
+    from redcell.reporting.sarif import to_sarif
+    new = GOALS["tool_misuse"].title
+    assert new == "Get the agent to run a forbidden command" and GOALS["tool_misuse"].owasp == "LLM06 Excessive Agency"
+    snap = json.load(open(os.path.join(os.path.dirname(__file__), "..", "web", "last-live", "report.json"), encoding="utf-8"))
+    assert any(f["id"] == "tool_misuse" and f["title"] != new for f in snap["findings"])   # snapshot not hand-edited
+    md, html = report.to_markdown(snap), report.to_html(snap)
+    assert f"## {new}" in md and new in html and "Trigger a destructive shell command" not in md + html
+    sarif = json.dumps(to_sarif(snap))
+    assert new in sarif and "Trigger a destructive shell command" not in sarif
+    hard = json.load(open(os.path.join(os.path.dirname(__file__), "..", "web", "last-live", "report-hardened.json"), encoding="utf-8"))
+    assert new in report.held_titles(hard)

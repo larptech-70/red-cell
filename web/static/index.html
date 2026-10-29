@@ -196,6 +196,8 @@ function showLast(){
   if(r){$('#findings').innerHTML='';render(r);dlKind=kind;$('#dl').disabled=false}
 }
 $('#hardened').onchange=showLast;
+// Goal titles come from the current goal definitions (/api/info), by id; saved reports are never edited by hand.
+function titleOf(id,fallback){const g=INFO&&INFO.goals.find(x=>x.id===id);return g?g.title:fallback}
 function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.textContent=html;return e}
 function setGoal(id,state,text){const g=goals[id];g.className='goal '+state;g.querySelector('.st').textContent=text}
 $('#run').onclick=()=>{
@@ -235,7 +237,7 @@ function render(r){
   $('#tally').innerHTML=r.goals_broken+' <small>of '+r.goals_tried+' goals broken</small>';
   const u=r.usage;$('#cost').textContent=u.calls+' model calls, '+(u.prompt_tokens+u.completion_tokens)+' tokens, $'+u.cost_usd.toFixed(4);
   if(r.intel){$('#cost').textContent+=r.intel.ran?'  |  threat intel: '+r.intel.sources+' sources via Tavily':'';}
-  r.findings.forEach(f=>{const d=el('div','finding');d.append(el('h3',null,f.title));d.append(el('p',null,f.owasp+'. Broke in '+f.turns_to_break+' turn(s).'));d.append(el('p',null,f.evidence));d.append(el('p','fix','Fix: '+f.fix));if(f.reference){const p=el('p');const a=el('a',null,'Reference: '+f.reference.title);a.href=f.reference.url;a.target='_blank';a.rel='noopener';p.append(a);d.append(p)}$('#findings').append(d)});
+  r.findings.forEach(f=>{const d=el('div','finding');d.append(el('h3',null,titleOf(f.id,f.title)));d.append(el('p',null,f.owasp+'. Broke in '+f.turns_to_break+' turn(s).'));d.append(el('p',null,f.evidence));d.append(el('p','fix','Fix: '+f.fix));if(f.reference){const p=el('p');const a=el('a',null,'Reference: '+f.reference.title);a.href=f.reference.url;a.target='_blank';a.rel='noopener';p.append(a);d.append(p)}$('#findings').append(d)});
   if(!r.findings.length)$('#findings').append(el('p','empty','Nothing got through. The hardened bot held on every goal.'));
   const cmp=$('#cmp');cmp.innerHTML='';
   if(r.comparison&&r.comparison.length){

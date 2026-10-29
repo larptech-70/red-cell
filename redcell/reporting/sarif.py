@@ -44,6 +44,7 @@ def to_sarif(report_data: dict[str, Any]) -> dict[str, Any]:
     findings = report_data.get("findings", [])
     target_config = report_data.get("target_config", DEFAULT_TARGET_CONFIG)
     target_id = report_data.get("target_id", DEFAULT_TARGET_ID)
+    from .report import goal_title  # titles from the current goal definitions, by id
     rules = []
     results = []
 
@@ -58,7 +59,7 @@ def to_sarif(report_data: dict[str, Any]) -> dict[str, Any]:
             rules.append({
                 "id": rule_key,
                 "name": cwe_info["name"],
-                "shortDescription": {"text": f.get("title", rule_key)},
+                "shortDescription": {"text": goal_title(f.get("id"), f.get("title", rule_key))},
                 "fullDescription": {"text": f"{owasp_raw}: {cwe_info['name']}"},
                 "help": {
                     "text": f"Remediation: {f.get('fix', '')}",
@@ -83,7 +84,7 @@ def to_sarif(report_data: dict[str, Any]) -> dict[str, Any]:
             "ruleId": rule_key,
             "level": "error",
             "message": {
-                "text": f"Vulnerability confirmed: {f.get('title')}. Evidence: {f.get('evidence')}. Broke in {f.get('turns_to_break')} turn(s).",
+                "text": f"Vulnerability confirmed: {goal_title(f.get('id'), f.get('title'))}. Evidence: {f.get('evidence')}. Broke in {f.get('turns_to_break')} turn(s).",
             },
             "locations": [{
                 "physicalLocation": {"artifactLocation": {"uri": target_config}, "region": {"startLine": 1}},

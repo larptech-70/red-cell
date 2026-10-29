@@ -5,6 +5,7 @@ import html
 import json
 import time
 
+from ..attacks.goals import GOALS
 from ..intel import tavily_intel
 from .sarif import to_sarif, save_sarif
 
@@ -88,6 +89,16 @@ def comparison_table(rep: dict) -> list[list[str]]:
     return rows
 
 
+def goal_title(goal_id: str | None, fallback: str = "") -> str:
+    """Display title from the CURRENT goal definitions, so saved reports never need hand edits."""
+    return GOALS[goal_id].title if goal_id in GOALS else fallback
+
+
+def held_titles(rep: dict) -> list[str]:
+    ids = {t["title"]: t["goal"] for t in rep.get("transcript") or []}
+    return [goal_title(ids.get(h), h) for h in rep.get("held", [])]
+
+
 def to_markdown(rep: dict) -> str:
     out = [f"# RedCell report: {rep['target']}", "",
            f"Generated {rep['generated']} | brain: {rep['brain']} | hardened target: {rep['target_hardened']}", "",
@@ -96,7 +107,7 @@ def to_markdown(rep: dict) -> str:
     if intel.get("ran"):
         out += [f"Threat intel: informed by {intel['sources']} current defensive source(s) via Tavily.", ""]
     for f in rep["findings"]:
-        out += [f"## {f['title']}", f"Risk: {f['owasp']}. Broke in {f['turns_to_break']} turn(s). Reproduced on a fresh target.", "",
+        out += [f"## {goal_title(f.get('id'), f['title'])}", f"Risk: {f['owasp']}. Broke in {f['turns_to_break']} turn(s). Reproduced on a fresh target.", "",
                 f"Evidence: {f['evidence']}", "", "Reproduce with these messages, in order:"]
         out += [f"{i}. {m}" for i, m in enumerate(f["repro"], 1)]
         out += ["", f"Fix: {f['fix']}"]
@@ -104,7 +115,7 @@ def to_markdown(rep: dict) -> str:
             out += [f"Reference (Tavily intel): [{f['reference']['title']}]({f['reference']['url']})"]
         out += [""]
     if rep["held"]:
-        out += ["## Held", *[f"- {h}" for h in rep["held"]], ""]
+        out += ["## Held", *[f"- {h}" for h in held_titles(rep)], ""]
     u = rep["usage"]
     out += ["## Run cost", f"{u['calls']} model calls, {u['prompt_tokens'] + u['completion_tokens']} tokens, ${u['cost_usd']:.4f} of ${u['budget_usd']:.2f} budget.", ""]
     out += ["## Baseline comparison", ""]
@@ -117,7 +128,7 @@ def to_markdown(rep: dict) -> str:
 def to_html(rep: dict) -> str:
     e = html.escape
     body = "".join(
-        f"<section><h2>{e(f['title'])}</h2><p>{e(f['owasp'])}. Broke in {f['turns_to_break']} turn(s).</p>"
+        f"<section><h2>{e(goal_title(f.get('id'), f['title']))}</h2><p>{e(f['owasp'])}. Broke in {f['turns_to_break']} turn(s).</p>"
         f"<p><b>Evidence:</b> {e(f['evidence'])}</p><ol>{''.join(f'<li>{e(m)}</li>' for m in f['repro'])}</ol>"
         f"<p><b>Fix:</b> {e(f['fix'])}</p>"
         + (f"<p><b>Reference:</b> <a href='{e(f['reference']['url'])}'>{e(f['reference']['title'])}</a></p>" if f.get("reference") else "")
