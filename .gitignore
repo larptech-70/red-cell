@@ -1,6 +1,7 @@
 # Secrets and local handoff notes - never commit these
 .env
 HANDOFF.md
+reference.txt
 
 # Generated run artifacts (reports, intel cache, garak configs/output)
 reports/
