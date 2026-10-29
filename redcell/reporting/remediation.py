@@ -17,6 +17,8 @@ import json
 import os
 import pathlib
 import subprocess
+import sys
+import types
 from typing import Any
 
 TARGET_FILE = "redcell/target/devops_agent.py"
@@ -160,6 +162,23 @@ def hardened_source() -> str:
     return _gate_mock_shell(src)
 
 
+def load_patched_agent_class():
+    """Return the DevOpsAgent class from the hardened source, as a drop-in target.
+
+    Loads the generated hardened devops_agent as a real module so callers can
+    instantiate it exactly like ``DevOpsAgent(llm=..., model=..., mock=...)``.
+    Used by the ``--patched`` re-test path so the same generated patch that ships
+    in the report is what actually gets tested.
+    """
+    src = hardened_source()
+    mod = types.ModuleType("redcell.target.patched_devops_agent")
+    mod.__package__ = "redcell.target"
+    mod.__file__ = "redcell/target/patched_devops_agent.py"
+    sys.modules[mod.__name__] = mod
+    exec(compile(src, mod.__file__, "exec"), mod.__dict__)
+    return mod.DevOpsAgent
+
+
 def patch_text() -> str:
     """A unified diff, ``git apply``-able from the repo root, weak -> hardened."""
     a = weak_source().splitlines(keepends=True)
@@ -233,6 +252,7 @@ def build(results, outdir: str = "reports/patches") -> dict[str, Any]:
         "patch": os.path.relpath(patch_path, root),
         "hardened_file": os.path.relpath(hard_path, root),
         "applies": applies,
+        "patch_text": patch,
         "by_goal": by_goal,
     }
     with open(os.path.join(outdir, "remediations.json"), "w", encoding="utf-8") as f:
