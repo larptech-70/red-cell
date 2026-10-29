@@ -31,7 +31,20 @@ ap.add_argument("--turns", type=int, default=6, help="Maximum adversarial turns 
 ap.add_argument("--canary-file", type=str, default=None, help="Path to JSON file with custom canary definitions")
 ap.add_argument("--fail-on-breach", action="store_true", help="CI/CD gate: exit with non-zero code (1) if any attack goals are breached")
 ap.add_argument("--max-allowed-breaches", type=int, default=0, help="Maximum tolerated breaches before returning non-zero exit code (default: 0)")
+ap.add_argument("--tactic", type=str, default="default", help="Adversarial evasion tactic: enumeration, authority, multilingual, encoding, simulation, overload")
+ap.add_argument("--list-tactics", action="store_true", help="List all available pluggable jailbreak & evasion tactics and exit")
 a = ap.parse_args()
+if a.list_tactics:
+    from redcell.attacks.tactics import list_tactics
+    print("=" * 75)
+    print("RedCell Pluggable Jailbreak & Adversarial Evasion Tactics")
+    print("=" * 75)
+    for t in list_tactics():
+        print(f"  * {t.id:<14} [{t.category.upper():<10}] - {t.name}")
+        print(f"    Description: {t.description}")
+        print(f"    Guidance:    {t.prompt_guidance[:100]}...")
+        print()
+    sys.exit(0)
 if a.canary_file:
     from redcell.target.simshell import load_canary_file
     load_canary_file(a.canary_file)
@@ -39,7 +52,7 @@ if a.canary_file:
 sys.stdout.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
 
 llm = TokenFactory(ledger=Ledger(float(os.environ.get("REDCELL_BUDGET_USD", "1.50"))))
-brain = LiveBrain(llm, PLANNER, JUDGE_M) if llm.live else MockBrain()
+brain = LiveBrain(llm, PLANNER, JUDGE_M, tactic=a.tactic) if llm.live else MockBrain(tactic=a.tactic)
 mode = "nemotron-live" if llm.live else "mock"
 active_goal_ids = list(GOALS) if (a.all_owasp or a.compare) else CORE_GOAL_IDS
 
