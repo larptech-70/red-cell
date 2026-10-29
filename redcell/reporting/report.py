@@ -32,10 +32,12 @@ def build(results, usage: dict, *, target_name: str, hardened: bool, mode: str,
         findings.append(f)
     rep = {
         "generated": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "generated_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "target": target_name,
         "target_hardened": hardened,
         "brain": mode,
         "goals_tried": len(results),
+        "attack_turns": sum(len(r.turns) for r in results),
         "goals_broken": len(findings),
         "findings": findings,
         "held": [r.goal.title for r in results if not r.landed],
@@ -49,15 +51,25 @@ def build(results, usage: dict, *, target_name: str, hardened: bool, mode: str,
 
 def comparison_table(rep: dict) -> list[list[str]]:
     g = rep.get("garak")
-    rows = [["", "garak (static probes)", "RedCell (adaptive)"]]
+    rows = [["", "garak (static probes, run on the weak bot)", "RedCell (adaptive, this run)"]]
     if not g or not g.get("ran"):
         status = g.get("reason", "Not run yet") if g else "Not run yet"
         return rows + [["Status", status, f"{rep['goals_broken']} findings"]]
-    rows.append(["Probe attempts / turns", str(g.get("attempts", 0)), str(rep["usage"].get("calls", 0))])
-    rows.append(["Findings", str(g.get("findings", 0)), str(rep["goals_broken"])])
-    rows.append(["Tool-misuse tested", "No (text only)", "Yes (shell log checked)"])
-    rows.append(["Multi-turn attacks", "No", "Yes"])
-    rows.append(["Fix per finding", "No", "Yes"])
+    sent = f"{g.get('attempts', 0)} single-turn probes"
+    if g.get("unavailable"):
+        sent += f" ({g['unavailable']} got no target reply)"
+    rows.append(["Prompts sent to target", sent, f"{rep.get('attack_turns', rep['usage'].get('calls', 0))} adaptive turns"])
+    fams = g.get("by_family") or {}
+    detail = ", ".join(f"{v['hits']} {k}" for k, v in fams.items() if v["hits"])
+    rows.append(["What counts as a hit", f"{g.get('findings', 0)} detector hits on reply text" + (f" ({detail})" if detail else ""),
+                 f"{rep['goals_broken']} goals broken, checked against planted canaries / shell log and replayed"])
+    if "promptinject" in fams:  # credit where garak covers something RedCell's core goals don't
+        pi = fams["promptinject"]
+        rows.append(["Text-only prompt hijack", f"Yes: {pi['hits']}/{pi['attempts']} probes made the bot say the rogue string",
+                     "Not among the 4 core goals (LLM01 goal is experimental)"])
+    rows.append(["Sees tool calls", "No: text replies only", "Yes: every simulated shell command"])
+    rows.append(["Multi-turn", "No", "Yes"])
+    rows.append(["Remediation guidance per finding", "No", "Yes"])
     return rows
 
 
