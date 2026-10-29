@@ -8,14 +8,10 @@ services:
     runtime: python
     plan: free
     autoDeploy: false
-    # Optional extras, each installed on its own so a failure only switches that feature off (never fails the build):
-    # ReportLab for PDF export, langsmith for tracing.
-    # Then wipe build/ (Render's build cache can keep an older tag's folder) and unpack into the fixed folder
-    # build/app, so the start command never depends on a glob matching exactly one directory.
+    # Wipe build/ first (Render's build cache can keep an older tag's folder), then unpack into the fixed
+    # folder build/app, so the start command never depends on a glob matching exactly one directory.
     buildCommand: >-
-      (pip install reportlab==4.4.10 || echo "reportlab install failed: PDF export disabled")
-      && (pip install langsmith==0.14.14 || echo "langsmith install failed: tracing disabled")
-      && rm -rf build && python -c "import io,os,tarfile,urllib.request as u;
+      rm -rf build && python -c "import io,os,tarfile,urllib.request as u;
       t=os.environ['REDCELL_TAG'];
       tarfile.open(fileobj=io.BytesIO(u.urlopen('https://codeload.github.com/larptech-70/red-cell/tar.gz/refs/tags/'+t).read())).extractall('build',filter='data')"
       && mv build/red-cell-* build/app
@@ -23,7 +19,7 @@ services:
     healthCheckPath: /api/info
     envVars:
       - key: REDCELL_TAG
-        value: v1.4-submission
+        value: v1.3-submission
       - key: REDCELL_HOST
         value: 0.0.0.0
       - key: REDCELL_PUBLIC
@@ -36,14 +32,9 @@ services:
         value: "0.50"
       - key: PYTHONUNBUFFERED
         value: "1"
-      # Optional LangSmith tracing of public runs (run data only: no visitor IP, cookie or run code).
-      # Needs the LANGSMITH_API_KEY secret; without it, or without the package, tracing stays off.
+      # Optional LangSmith tracing stays off on the public demo.
       - key: LANGSMITH_TRACING
-        value: "true"
-      - key: LANGSMITH_PROJECT
-        value: redcell
-      - key: LANGSMITH_API_KEY
-        sync: false
+        value: "false"
       - key: NEBIUS_API_KEY
         sync: false
       - key: TAVILY_API_KEY

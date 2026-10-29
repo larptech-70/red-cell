@@ -74,6 +74,16 @@ td,th{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);verti
 th{font-weight:700}
 td:first-child{font-weight:500;color:var(--muted);white-space:nowrap}
 .compare .note{margin:10px 0 0;font-size:.88rem;color:var(--muted);max-width:60rem}
+.patchwrap{padding:24px;border-top:1px solid var(--line)}
+.patchwrap h2{margin:0 0 8px;font-size:1rem;font-weight:700}
+.patchwrap .note{margin:0 0 12px;font-size:.88rem;color:var(--muted);max-width:60rem}
+.patchwrap .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+.diff{margin:0;padding:12px 0;font:.82rem/1.55 ui-monospace,Menlo,Consolas,monospace;white-space:pre;tab-size:4}
+.diff .add{color:var(--held);background:rgba(47,125,50,.14)}
+.diff .del{color:var(--breach);background:rgba(217,0,43,.14)}
+.diff .hunk{color:var(--warn)}
+.diff .meta{color:var(--muted)}
+.diff .ctx{color:var(--ink)}
 .hero{padding:20px 24px 4px;border-bottom:1px solid var(--line)}
 .hero .lede{margin:0 0 14px;font-size:1.2rem;font-weight:500;max-width:60rem}
 .ba{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
@@ -105,7 +115,6 @@ td:first-child{font-weight:500;color:var(--muted);white-space:nowrap}
     <span id="codebox" hidden><input class="code" id="code" type="password" placeholder="Judge code" autocomplete="off" aria-label="Judge code for live runs"> <button class="ghost" id="unlock">Unlock live runs</button></span>
     <button id="run">Run attack</button>
     <button class="ghost" id="dl" disabled>Download report</button>
-    <button class="ghost" id="pdf" hidden disabled>Download PDF</button>
     <span class="codenote" id="codenote" hidden></span>
   </div>
 </header>
@@ -143,11 +152,16 @@ td:first-child{font-weight:500;color:var(--muted);white-space:nowrap}
   <div class="tablewrap"><table id="cmp"></table></div>
   <p class="note" id="cmpnote"></p>
 </div>
+<div class="patchwrap" id="patch" hidden aria-labelledby="patch-h">
+  <h2 id="patch-h">Remediation patch — one applyable diff hardens the bot</h2>
+  <p class="note" id="patchnote"></p>
+  <div class="tablewrap"><pre class="diff" id="patchdiff"></pre></div>
+</div>
 <script>
 const $=s=>document.querySelector(s);
 const goals={}; let es=null, cur=null, LAST={}, running=false, dlKind='', INFO=null;
 function loadInfo(){fetch('/api/info').then(r=>r.json()).then(i=>{
-  INFO=i;renderBA();$('#pdf').hidden=!i.pdf;
+  INFO=i;renderBA();
   $('#mode').textContent=(i.live?'Live: Nemotron on Token Factory':'Offline demo mode (no API key)')+(i.runs_left!=null&&i.unlocked?' | live runs left today: '+i.runs_left:'');
   const locked=i.needs_code&&!i.unlocked;
   $('#codebox').hidden=!(locked&&i.live_runs_enabled);
@@ -194,8 +208,8 @@ function showLast(){
   const w=LAST.weak,h=LAST.hardened;
   if(!w&&!h)return;
   $('#lastlive').hidden=false;
-  $('#lastlive').textContent='Last live run (real Nemotron calls, no new spend): weak bot '+(w?w.goals_broken+'/'+w.goals_tried:'n/a')+' broken, hardened bot '+(h?h.goals_broken+'/'+h.goals_tried:'n/a')+' broken. Showing the '+kind+' run from '+(r?(r.generated_utc?r.generated_utc.slice(0,16).replace('T',' ')+' UTC':r.generated):'n/a')+'. Toggle "Test the hardened bot" to switch.';
-  if(r){$('#findings').innerHTML='';render(r);dlKind=kind;$('#dl').disabled=$('#pdf').disabled=false}
+  $('#lastlive').textContent='Last live run (real Nemotron calls, no new spend): weak bot '+(w?w.goals_broken+'/'+w.goals_tried:'n/a')+' broken, hardened bot '+(h?h.goals_broken+'/'+h.goals_tried:'n/a')+' broken. Showing the '+kind+' run from '+(r?r.generated:'n/a')+'. Toggle "Test the hardened bot" to switch.';
+  if(r){$('#findings').innerHTML='';render(r);dlKind=kind;$('#dl').disabled=false}
 }
 $('#hardened').onchange=showLast;
 // Goal titles come from the current goal definitions (/api/info), by id; saved reports are never edited by hand.
@@ -204,7 +218,7 @@ function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className
 function setGoal(id,state,text){const g=goals[id];g.className='goal '+state;g.querySelector('.st').textContent=text}
 $('#run').onclick=()=>{
   if(es)es.close();
-  $('#run').disabled=true;$('#dl').disabled=$('#pdf').disabled=true;running=true;dlKind='';$('#lastlive').hidden=true;
+  $('#run').disabled=true;$('#dl').disabled=true;running=true;dlKind='';$('#lastlive').hidden=true;
   $('#feed').innerHTML='';$('#goals').innerHTML='';$('#findings').innerHTML='';$('#tally').innerHTML='0 <small>broken</small>';$('#cost').textContent='';$('#compare').hidden=true;
   es=new EventSource('/events?hardened='+($('#hardened').checked?1:0));
   es.onmessage=m=>handle(JSON.parse(m.data));
@@ -231,7 +245,7 @@ function handle(e){
   feed.lastElementChild&&feed.lastElementChild.scrollIntoView({block:'nearest',behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'});
 }
 function finish(r){
-  es.close();$('#run').disabled=false;$('#dl').disabled=$('#pdf').disabled=false;running=false;
+  es.close();$('#run').disabled=false;$('#dl').disabled=false;running=false;
   if(r.brain==='nemotron-live')LAST[r.target_hardened?'hardened':'weak']=r;
   loadInfo();render(r);
 }
@@ -239,7 +253,7 @@ function render(r){
   $('#tally').innerHTML=r.goals_broken+' <small>of '+r.goals_tried+' goals broken</small>';
   const u=r.usage;$('#cost').textContent=u.calls+' model calls, '+(u.prompt_tokens+u.completion_tokens)+' tokens, $'+u.cost_usd.toFixed(4);
   if(r.intel){$('#cost').textContent+=r.intel.ran?'  |  threat intel: '+r.intel.sources+' sources via Tavily':'';}
-  r.findings.forEach(f=>{const d=el('div','finding');d.append(el('h3',null,titleOf(f.id,f.title)));d.append(el('p',null,f.owasp+'. Broke in '+f.turns_to_break+' turn(s).'));d.append(el('p',null,f.evidence));d.append(el('p','fix','Fix: '+f.fix));if(f.reference){const p=el('p');const a=el('a',null,'Reference: '+f.reference.title);a.href=f.reference.url;a.target='_blank';a.rel='noopener';p.append(a);d.append(p)}$('#findings').append(d)});
+  r.findings.forEach(f=>{const d=el('div','finding');d.append(el('h3',null,titleOf(f.id,f.title)));d.append(el('p',null,f.owasp+'. Broke in '+f.turns_to_break+' turn(s).'));d.append(el('p',null,f.evidence));d.append(el('p','fix','Fix: '+f.fix));if(f.remediation){d.append(el('p','fix','Remediation: '+f.remediation.defence+' (patch: '+f.remediation.patch+')'))}if(f.reference){const p=el('p');const a=el('a',null,'Reference: '+f.reference.title);a.href=f.reference.url;a.target='_blank';a.rel='noopener';p.append(a);d.append(p)}$('#findings').append(d)});
   if(!r.findings.length)$('#findings').append(el('p','empty','Nothing got through. The hardened bot held on every goal.'));
   const cmp=$('#cmp');cmp.innerHTML='';
   if(r.comparison&&r.comparison.length){
@@ -249,9 +263,24 @@ function render(r){
     $('#cmpnote').textContent=r.garak?'garak is single-turn and text-only; it cannot observe tool calls. A fair baseline, not a weak tool.':'Run garak_baseline to populate the static-scanner column.';
     $('#compare').hidden=false;
   }
+  renderPatch(r.patches);
+}
+function renderPatch(p){
+  const wrap=$('#patch');
+  if(!p||!p.patch_text){wrap.hidden=true;return}
+  wrap.hidden=false;
+  $('#patchnote').textContent='Generated from the target source at run time. Applies with `git apply reports/patches/redcell-hardening.patch` ('+(p.applies?'verified clean':'review required')+'). Hardened source: '+p.hardened_file+'.';
+  const pre=$('#patchdiff');pre.innerHTML='';
+  p.patch_text.split('\n').forEach(line=>{
+    const s=document.createElement('span');
+    if(line.startsWith('+++')||line.startsWith('---'))s.className='meta';
+    else if(line.startsWith('@@'))s.className='hunk';
+    else if(line.startsWith('+'))s.className='add';
+    else if(line.startsWith('-'))s.className='del';
+    else s.className='ctx';
+    s.textContent=line+'\n';pre.append(s)});
 }
 $('#dl').onclick=()=>{location.href='/report.md'+(dlKind?'?kind='+dlKind:'')};
-$('#pdf').onclick=()=>{location.href='/report.pdf'+(dlKind?'?kind='+dlKind:'')};
 </script>
 </body>
 </html>

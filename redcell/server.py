@@ -5,8 +5,7 @@
   GET  /api/info             mode, goals, live runs left for this visitor
   GET  /api/last             last LIVE weak + hardened reports (no new spend)
   POST /api/unlock           {"code": ...} -> sets an HttpOnly cookie that allows live runs (public mode)
-  GET  /report.md|.json|.html|.pdf   report of the last run here (or ?kind=weak|hardened live report);
-                             .pdf needs the optional reportlab package
+  GET  /report.md|.json      report of the last run here (or the last live report)
   POST /target/chat          chat with the demo target (this is what garak scans)
   GET  /target/usage         spend of the /target/chat endpoint
 
@@ -35,7 +34,6 @@ from .core.llm import Ledger, TokenFactory
 from .core.session import LiveBrain, MockBrain, run_session
 from .intel import tavily_intel
 from .reporting import garak_baseline
-from .reporting import pdf as pdf_report
 from .reporting import report as rpt
 from .target.devops_agent import DevOpsAgent
 
@@ -43,6 +41,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 STATIC = ROOT / "web" / "static"
 LAST_LIVE_DIR = ROOT / "web" / "last-live"   # committed snapshot of the last live runs, served to judges
 REPORTS = ROOT / "reports"
+PATCHES = REPORTS / "patches"                # generated hardening patch + hardened source
 PLANNER = os.environ.get("REDCELL_PLANNER_MODEL", "nvidia/Nemotron-3-Ultra-550b-a55b")
 TARGET_M = os.environ.get("REDCELL_TARGET_MODEL", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B")
 JUDGE_M = os.environ.get("REDCELL_JUDGE_MODEL", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B")
@@ -199,17 +198,12 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, (STATIC / "index.html").read_bytes())
         if u.path == "/events":
             return self._events(q)
-        if u.path in ("/report.md", "/report.json", "/report.html", "/report.pdf"):
+        if u.path in ("/report.md", "/report.json"):
             kind = q.get("kind", [""])[0]
             r = LAST_LIVE.get(kind) if kind else (STATE["report"] or LAST_LIVE.get("weak"))
-            if not r:
-                return self._send(404, '{"error":"no report yet"}', "application/json")
-            if u.path == "/report.pdf":
-                return self._send_pdf(r, kind)
-            if u.path == "/report.html":
-                return self._send(200, rpt.to_html(r), "text/html; charset=utf-8")
-            return self._send(200, rpt.to_markdown(r) if u.path.endswith("md") else json.dumps(r, indent=2),
-                              "text/markdown; charset=utf-8" if u.path.endswith("md") else "application/json")
+            if r:
+                return self._send(200, rpt.to_markdown(r) if u.path.endswith("md") else json.dumps(r, indent=2),
+                                  "text/markdown; charset=utf-8" if u.path.endswith("md") else "application/json")
         if u.path == "/api/last":
             return self._send(200, json.dumps(LAST_LIVE), "application/json")
         if u.path == "/target/usage":  # spend of the garak-facing /target/chat endpoint
@@ -218,7 +212,6 @@ class H(BaseHTTPRequestHandler):
             live = TokenFactory().live
             return self._send(200, json.dumps({
                 "live": live, "public": PUBLIC, "runs_left": GUARD.runs_left(self._visitor()) if live else None,
-                "pdf": pdf_report.available(),
                 "needs_code": PUBLIC and live, "live_runs_enabled": live and (not PUBLIC or bool(_run_code())),
                 "unlocked": live and run_allowed(self.headers.get("Cookie"))[0],
                 "goals": [{"id": GOALS[g].id, "title": GOALS[g].title, "owasp": GOALS[g].owasp} for g in GOAL_IDS]}), "application/json")
@@ -243,22 +236,6 @@ class H(BaseHTTPRequestHandler):
         except Exception as e:  # always answer -- a hang here would stall a whole garak scan
             reply = f"(target unavailable: {type(e).__name__})"
         self._send(200, json.dumps({"reply": reply}), "application/json")
-
-    def _send_pdf(self, r: dict, kind: str):
-        """PDF via the optional ReportLab package. Missing package or any build error gives a clean JSON error, never a crash."""
-        if not pdf_report.available():
-            return self._send(501, '{"error":"PDF export is not installed on this server (pip install reportlab)."}', "application/json")
-        try:
-            body = pdf_report.to_pdf(r)
-        except Exception as e:
-            return self._send(500, json.dumps({"error": f"PDF export failed ({type(e).__name__}); the Markdown report still works."}), "application/json")
-        name = f"redcell-report-{kind or ('hardened' if r.get('target_hardened') else 'weak')}-{(r.get('generated_utc') or 'run')[:10]}.pdf"
-        self.send_response(200)
-        self.send_header("Content-Type", "application/pdf")
-        self.send_header("Content-Disposition", f'attachment; filename="{name}"')
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
 
     def _unlock(self):
         visitor = self._visitor()
@@ -314,7 +291,7 @@ class H(BaseHTTPRequestHandler):
                 if isinstance(brain, LiveBrain):
                     brain.intel = intel
                 results = run_session(target, brain, GOAL_IDS, emit=emit)
-                rep = rpt.build(results, llm.ledger.snapshot(), target_name="OrbitOps (demo DevOps bot)", hardened=hardened, mode=mode, intel=intel, garak=garak_baseline.load())
+                rep = rpt.build(results, llm.ledger.snapshot(), target_name="OrbitOps (demo DevOps bot)", hardened=hardened, mode=mode, intel=intel, garak=garak_baseline.load(), patches_dir=str(PATCHES))
                 run_span.end(outputs={"goals_broken": rep["goals_broken"], "goals_tried": rep["goals_tried"]},
                              metadata={"cost_usd": rep["usage"]["cost_usd"], "model_calls": rep["usage"]["calls"]})
             STATE["report"] = rep
