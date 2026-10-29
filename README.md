@@ -1,6 +1,6 @@
 # RedCell
 
-[![Tests](https://img.shields.io/badge/tests-98%20passing-brightgreen)](#run-it-locally)
+[![Tests](https://img.shields.io/badge/tests-105%20passing-brightgreen)](#run-it-locally)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Models](https://img.shields.io/badge/Models-NVIDIA%20Nemotron%20on%20Nebius%20Token%20Factory-76b900)](#nvidia-nemotron-on-nebius-token-factory)
 
@@ -96,6 +96,7 @@ summary of them, and every finding in the report links to its top source. Result
 
 ## Other tools
 
+- **Real-Time Security Webhooks:** dispatch rich security alert cards directly to **Slack** (Block Kit with color banners), **Discord** (rich embeds), or generic SIEM/SOAR webhooks via `--webhook-url` and `--alert-on-breach-only` on CLI runs, or via `python -m redcell.reporting.alerts`.
 - **LangSmith tracing (optional, off by default):** with `pip install langsmith`, `LANGSMITH_API_KEY` and
   `LANGSMITH_TRACING=true`, each run is traced (run, then goal, then each LLM call with tokens, cost and latency,
   plus the Tavily lookup). Without them, nothing changes.
@@ -143,7 +144,8 @@ python scripts/run_demo.py      # same engine in the terminal (weak bot)
 python scripts/run_demo.py --hardened
 python scripts/run_demo.py --compare   # weak vs hardened OWASP table + remediation patch
 python scripts/replay_viewer.py --auto # screencast replayer of adversarial transcripts
-python -m pytest -q tests       # 98 tests; pip install pytest (and jsonschema for full SARIF validation)
+python scripts/run_demo.py --webhook-url https://hooks.slack.com/... --alert-on-breach-only # real-time Slack/Discord alert
+python -m pytest -q tests       # 105 tests; pip install pytest (and jsonschema for full SARIF validation)
 ```
 
 Core RedCell uses only the Python standard library. Runs write Markdown, HTML, JSON, SARIF, PDF, and NVIDIA NeMo Guardrails bundles to

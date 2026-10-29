@@ -33,6 +33,8 @@ ap.add_argument("--fail-on-breach", action="store_true", help="CI/CD gate: exit 
 ap.add_argument("--max-allowed-breaches", type=int, default=0, help="Maximum tolerated breaches before returning non-zero exit code (default: 0)")
 ap.add_argument("--tactic", type=str, default="default", help="Adversarial evasion tactic: enumeration, authority, multilingual, encoding, simulation, overload")
 ap.add_argument("--list-tactics", action="store_true", help="List all available pluggable jailbreak & evasion tactics and exit")
+ap.add_argument("--webhook-url", type=str, default=None, help="Slack, Discord, or generic webhook URL for real-time alerting")
+ap.add_argument("--alert-on-breach-only", action="store_true", help="Only dispatch webhook notification if goals_broken > 0")
 a = ap.parse_args()
 if a.list_tactics:
     from redcell.attacks.tactics import list_tactics
@@ -188,6 +190,15 @@ try:
 except BaseException:
     raise
 tracing.flush()
+
+# Real-time Webhook Alerting
+webhook_url = a.webhook_url or os.environ.get("REDCELL_WEBHOOK_URL")
+if webhook_url:
+    from redcell.reporting.alerts import send_webhook_alert
+    target_rep = rep if not a.compare else (hard_rep if a.hardened else weak_rep)
+    if not a.alert_on_breach_only or target_rep.get("goals_broken", 0) > 0:
+        if send_webhook_alert(target_rep, webhook_url):
+            print(f"RedCell | Real-time webhook alert dispatched to: {webhook_url[:35]}...")
 
 if a.fail_on_breach:
     total_broken = rep.get("goals_broken", 0) if not a.compare else (hard_rep.get("goals_broken", 0) if a.hardened else weak_rep.get("goals_broken", 0))
