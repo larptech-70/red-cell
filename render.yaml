@@ -8,11 +8,14 @@ services:
     runtime: python
     plan: free
     autoDeploy: false
+    # Wipe build/ first (Render's build cache can keep an older tag's folder), then unpack into the fixed
+    # folder build/app, so the start command never depends on a glob matching exactly one directory.
     buildCommand: >-
-      python -c "import io,os,tarfile,urllib.request as u;
+      rm -rf build && python -c "import io,os,tarfile,urllib.request as u;
       t=os.environ['REDCELL_TAG'];
       tarfile.open(fileobj=io.BytesIO(u.urlopen('https://codeload.github.com/larptech-70/red-cell/tar.gz/refs/tags/'+t).read())).extractall('build',filter='data')"
-    startCommand: cd build/red-cell-* && exec python -m redcell.server
+      && mv build/red-cell-* build/app
+    startCommand: cd build/app && exec python -m redcell.server
     healthCheckPath: /api/info
     envVars:
       - key: REDCELL_TAG
