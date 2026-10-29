@@ -57,6 +57,7 @@ h2{margin:0 0 14px;font-size:1rem;font-weight:700}
 .tally{font-size:2.4rem;font-weight:700;line-height:1;letter-spacing:-.03em}
 .tally small{font-size:1rem;font-weight:400;color:var(--muted);letter-spacing:0}
 .cost{font-size:.85rem;color:var(--muted);margin-top:6px}
+.lastlive{font-size:.85rem;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin:0 0 12px}
 table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:14px}
 td,th{text-align:left;padding:6px 4px;border-bottom:1px solid var(--line);vertical-align:top}
 .msg,.sh,.verdict,.finding{max-width:100%;overflow-wrap:anywhere}
@@ -85,6 +86,7 @@ td,th{text-align:left;padding:6px 4px;border-bottom:1px solid var(--line);vertic
   </section>
   <section aria-label="Findings">
     <h2>Findings</h2>
+    <p class="lastlive" id="lastlive" hidden></p>
     <div class="tally" id="tally">0 <small>broken</small></div>
     <div class="cost" id="cost"></div>
     <div id="findings"></div>
@@ -93,17 +95,28 @@ td,th{text-align:left;padding:6px 4px;border-bottom:1px solid var(--line);vertic
 </main>
 <script>
 const $=s=>document.querySelector(s);
-const goals={}; let es=null, cur=null;
-fetch('/api/info').then(r=>r.json()).then(i=>{$('#mode').textContent=i.live?'Live: Nemotron on Token Factory':'Offline demo mode (no API key)'});
+const goals={}; let es=null, cur=null, LAST={}, running=false, dlKind='';
+function loadInfo(){fetch('/api/info').then(r=>r.json()).then(i=>{$('#mode').textContent=(i.live?'Live: Nemotron on Token Factory':'Offline demo mode (no API key)')+(i.runs_left!=null?' | live runs left today: '+i.runs_left:'')})}
+loadInfo();
+fetch('/api/last').then(r=>r.json()).then(l=>{LAST=l;showLast()});
+function showLast(){
+  if(running)return;const kind=$('#hardened').checked?'hardened':'weak',r=LAST[kind];
+  const w=LAST.weak,h=LAST.hardened;
+  if(!w&&!h)return;
+  $('#lastlive').hidden=false;
+  $('#lastlive').textContent='Last live run (real Nemotron calls, no new spend): weak bot '+(w?w.goals_broken+'/'+w.goals_tried:'n/a')+' broken, hardened bot '+(h?h.goals_broken+'/'+h.goals_tried:'n/a')+' broken. Showing the '+kind+' run from '+(r?r.generated:'n/a')+'. Toggle "Test the hardened bot" to switch.';
+  if(r){$('#findings').innerHTML='';render(r);dlKind=kind;$('#dl').disabled=false}
+}
+$('#hardened').onchange=showLast;
 function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.textContent=html;return e}
 function setGoal(id,state,text){const g=goals[id];g.className='goal '+state;g.querySelector('.st').textContent=text}
 $('#run').onclick=()=>{
   if(es)es.close();
-  $('#run').disabled=true;$('#dl').disabled=true;
+  $('#run').disabled=true;$('#dl').disabled=true;running=true;dlKind='';$('#lastlive').hidden=true;
   $('#feed').innerHTML='';$('#goals').innerHTML='';$('#findings').innerHTML='';$('#tally').innerHTML='0 <small>broken</small>';$('#cost').textContent='';$('#cmp').hidden=true;
   es=new EventSource('/events?hardened='+($('#hardened').checked?1:0));
   es.onmessage=m=>handle(JSON.parse(m.data));
-  es.onerror=()=>{es.close();$('#run').disabled=false};
+  es.onerror=()=>{es.close();$('#run').disabled=false;running=false};
 };
 function handle(e){
   const feed=$('#feed');
@@ -117,11 +130,16 @@ function handle(e){
   else if(e.type==='verdict'){const v=el('div','verdict '+e.verdict,e.verdict==='landed'?'Landed: '+(e.evidence||e.reason):e.verdict==='partial'?'Partly: '+e.reason:'Blocked: '+e.reason);feed.append(v)}
   else if(e.type==='goal_end'){setGoal(e.goal,e.landed?'landed':'held',e.landed?'Broken in '+e.turns+' turn'+(e.turns>1?'s':''):'Held for '+e.turns+' turns')}
   else if(e.type==='budget_stop'||e.type==='error'){feed.append(el('div','verdict landed',e.text))}
+  else if(e.type==='refused'){es.close();running=false;$('#run').disabled=false;feed.append(el('p','empty',e.text));showLast();loadInfo()}
   else if(e.type==='done'){finish(e.report)}
   feed.lastElementChild&&feed.lastElementChild.scrollIntoView({block:'nearest',behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'});
 }
 function finish(r){
-  es.close();$('#run').disabled=false;$('#dl').disabled=false;
+  es.close();$('#run').disabled=false;$('#dl').disabled=false;running=false;
+  if(r.brain==='nemotron-live')LAST[r.target_hardened?'hardened':'weak']=r;
+  loadInfo();render(r);
+}
+function render(r){
   $('#tally').innerHTML=r.goals_broken+' <small>of '+r.goals_tried+' goals broken</small>';
   const u=r.usage;$('#cost').textContent=u.calls+' model calls, '+(u.prompt_tokens+u.completion_tokens)+' tokens, $'+u.cost_usd.toFixed(4);
   if(r.intel){$('#cost').textContent+=r.intel.ran?'  |  threat intel: '+r.intel.sources+' sources via Tavily':'';}
@@ -138,7 +156,7 @@ function finish(r){
     cmp.hidden=false;
   }
 }
-$('#dl').onclick=()=>{location.href='/report.md'};
+$('#dl').onclick=()=>{location.href='/report.md'+(dlKind?'?kind='+dlKind:'')};
 </script>
 </body>
 </html>

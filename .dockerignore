@@ -1,0 +1,10 @@
+# Never ship secrets or local run output in an image
+.env
+.env.*
+reports/
+.git/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+HANDOFF.md
+reference.txt
