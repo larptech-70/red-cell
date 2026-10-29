@@ -6,12 +6,28 @@ or external webhooks via configurable request templates and bearer/header auth.
 from __future__ import annotations
 
 import json
+import os
 import time
 import urllib.error
 import urllib.request
 from typing import Any
+from urllib.parse import urlparse
 
 from .base import BaseTargetAdapter
+
+DEFAULT_ALLOWED_HOSTS = {"localhost", "127.0.0.1"}
+
+
+def check_host_allowed(url: str) -> str:
+    """Scope guard on the real network destination, not on a free-text target id.
+    Only localhost/127.0.0.1 by default; other hosts must be listed in REDCELL_ALLOW."""
+    host = (urlparse(url).hostname or "").lower()
+    allowed = DEFAULT_ALLOWED_HOSTS | {h.strip().lower() for h in os.environ.get("REDCELL_ALLOW", "").split(",") if h.strip()}
+    if host not in allowed:
+        raise PermissionError(
+            f"Refusing to test host '{host or url}': not on the allowlist. Only test agents you own or have "
+            f"written permission to test, and add their host to REDCELL_ALLOW (comma-separated) to proceed.")
+    return host
 
 
 class HTTPTargetAdapter(BaseTargetAdapter):
@@ -30,6 +46,9 @@ class HTTPTargetAdapter(BaseTargetAdapter):
         reset_url: str | None = None,
         timeout: int = 30,
     ):
+        check_host_allowed(endpoint_url)
+        if reset_url:
+            check_host_allowed(reset_url)
         super().__init__(target_id, name)
         self.endpoint_url = endpoint_url
         self.headers = headers or {"Content-Type": "application/json"}

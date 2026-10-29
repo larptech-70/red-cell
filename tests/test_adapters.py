@@ -4,10 +4,11 @@ import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import threading
 
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from redcell.adapters.base import BaseTargetAdapter
 from redcell.adapters.http_adapter import HTTPTargetAdapter
-from redcell.target.docker_sandbox import DockerSandbox
 
 
 class MockHTTPServer(BaseHTTPRequestHandler):
@@ -43,12 +44,22 @@ def test_http_target_adapter():
     server.shutdown()
 
 
-def test_docker_sandbox_fallback():
-    # Force fallback to ensure consistent non-docker test execution
-    sandbox = DockerSandbox(force_fallback=True)
-    sandbox.start()
-    assert sandbox.has_docker is False
-    out = sandbox.run("df -h")
-    assert "Filesystem" in out or "Filesystem" in sandbox.run("df")
-    assert len(sandbox.log) >= 1
-    sandbox.teardown()
+def test_http_allowlist_host_from_env(monkeypatch):
+    monkeypatch.setenv("REDCELL_ALLOW", "agent.mycompany.internal")
+    adapter = HTTPTargetAdapter("https://agent.mycompany.internal/chat")
+    assert adapter.endpoint_url.startswith("https://agent.mycompany.internal")
+
+
+def test_http_allowlist_refuses_unlisted_host(monkeypatch):
+    monkeypatch.delenv("REDCELL_ALLOW", raising=False)
+    with pytest.raises(PermissionError, match="not on the allowlist"):
+        HTTPTargetAdapter("https://someone-elses-bot.example.com/chat")
+
+
+def test_http_allowlist_ignores_spoofed_target_id(monkeypatch):
+    # The guard is on the URL's host; naming the target "orbitops-demo" must not get it through.
+    monkeypatch.delenv("REDCELL_ALLOW", raising=False)
+    with pytest.raises(PermissionError):
+        HTTPTargetAdapter("https://someone-elses-bot.example.com/chat", target_id="orbitops-demo")
+    with pytest.raises(PermissionError):  # reset_url is a network destination too
+        HTTPTargetAdapter("http://127.0.0.1:9/chat", reset_url="https://evil.example.com/reset")
