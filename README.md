@@ -142,7 +142,8 @@ python -m pytest -q tests       # 36 tests; pip install pytest (and jsonschema f
 ```
 
 Core RedCell uses only the Python standard library. Runs write Markdown, HTML, JSON and SARIF reports to
-`reports/`. To deploy a public copy for free on Render, see [DEPLOY.md](DEPLOY.md).
+`reports/`. With the optional `reportlab` package (`pip install reportlab==4.4.10`), the dashboard also offers a
+**Download PDF** button. To deploy a public copy for free on Render, see [DEPLOY.md](DEPLOY.md).
 
 ## Experimental / roadmap
 

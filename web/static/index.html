@@ -105,6 +105,7 @@ td:first-child{font-weight:500;color:var(--muted);white-space:nowrap}
     <span id="codebox" hidden><input class="code" id="code" type="password" placeholder="Judge code" autocomplete="off" aria-label="Judge code for live runs"> <button class="ghost" id="unlock">Unlock live runs</button></span>
     <button id="run">Run attack</button>
     <button class="ghost" id="dl" disabled>Download report</button>
+    <button class="ghost" id="pdf" hidden disabled>Download PDF</button>
     <span class="codenote" id="codenote" hidden></span>
   </div>
 </header>
@@ -146,7 +147,7 @@ td:first-child{font-weight:500;color:var(--muted);white-space:nowrap}
 const $=s=>document.querySelector(s);
 const goals={}; let es=null, cur=null, LAST={}, running=false, dlKind='', INFO=null;
 function loadInfo(){fetch('/api/info').then(r=>r.json()).then(i=>{
-  INFO=i;renderBA();
+  INFO=i;renderBA();$('#pdf').hidden=!i.pdf;
   $('#mode').textContent=(i.live?'Live: Nemotron on Token Factory':'Offline demo mode (no API key)')+(i.runs_left!=null&&i.unlocked?' | live runs left today: '+i.runs_left:'');
   const locked=i.needs_code&&!i.unlocked;
   $('#codebox').hidden=!(locked&&i.live_runs_enabled);
@@ -193,8 +194,8 @@ function showLast(){
   const w=LAST.weak,h=LAST.hardened;
   if(!w&&!h)return;
   $('#lastlive').hidden=false;
-  $('#lastlive').textContent='Last live run (real Nemotron calls, no new spend): weak bot '+(w?w.goals_broken+'/'+w.goals_tried:'n/a')+' broken, hardened bot '+(h?h.goals_broken+'/'+h.goals_tried:'n/a')+' broken. Showing the '+kind+' run from '+(r?r.generated:'n/a')+'. Toggle "Test the hardened bot" to switch.';
-  if(r){$('#findings').innerHTML='';render(r);dlKind=kind;$('#dl').disabled=false}
+  $('#lastlive').textContent='Last live run (real Nemotron calls, no new spend): weak bot '+(w?w.goals_broken+'/'+w.goals_tried:'n/a')+' broken, hardened bot '+(h?h.goals_broken+'/'+h.goals_tried:'n/a')+' broken. Showing the '+kind+' run from '+(r?(r.generated_utc?r.generated_utc.slice(0,16).replace('T',' ')+' UTC':r.generated):'n/a')+'. Toggle "Test the hardened bot" to switch.';
+  if(r){$('#findings').innerHTML='';render(r);dlKind=kind;$('#dl').disabled=$('#pdf').disabled=false}
 }
 $('#hardened').onchange=showLast;
 // Goal titles come from the current goal definitions (/api/info), by id; saved reports are never edited by hand.
@@ -203,7 +204,7 @@ function el(tag,cls,html){const e=document.createElement(tag);if(cls)e.className
 function setGoal(id,state,text){const g=goals[id];g.className='goal '+state;g.querySelector('.st').textContent=text}
 $('#run').onclick=()=>{
   if(es)es.close();
-  $('#run').disabled=true;$('#dl').disabled=true;running=true;dlKind='';$('#lastlive').hidden=true;
+  $('#run').disabled=true;$('#dl').disabled=$('#pdf').disabled=true;running=true;dlKind='';$('#lastlive').hidden=true;
   $('#feed').innerHTML='';$('#goals').innerHTML='';$('#findings').innerHTML='';$('#tally').innerHTML='0 <small>broken</small>';$('#cost').textContent='';$('#compare').hidden=true;
   es=new EventSource('/events?hardened='+($('#hardened').checked?1:0));
   es.onmessage=m=>handle(JSON.parse(m.data));
@@ -230,7 +231,7 @@ function handle(e){
   feed.lastElementChild&&feed.lastElementChild.scrollIntoView({block:'nearest',behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'});
 }
 function finish(r){
-  es.close();$('#run').disabled=false;$('#dl').disabled=false;running=false;
+  es.close();$('#run').disabled=false;$('#dl').disabled=$('#pdf').disabled=false;running=false;
   if(r.brain==='nemotron-live')LAST[r.target_hardened?'hardened':'weak']=r;
   loadInfo();render(r);
 }
@@ -250,6 +251,7 @@ function render(r){
   }
 }
 $('#dl').onclick=()=>{location.href='/report.md'+(dlKind?'?kind='+dlKind:'')};
+$('#pdf').onclick=()=>{location.href='/report.pdf'+(dlKind?'?kind='+dlKind:'')};
 </script>
 </body>
 </html>

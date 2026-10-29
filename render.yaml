@@ -8,10 +8,12 @@ services:
     runtime: python
     plan: free
     autoDeploy: false
-    # Wipe build/ first (Render's build cache can keep an older tag's folder), then unpack into the fixed
-    # folder build/app, so the start command never depends on a glob matching exactly one directory.
+    # Optional PDF export: install pinned ReportLab; if that fails the build still continues (PDF button hidden).
+    # Then wipe build/ (Render's build cache can keep an older tag's folder) and unpack into the fixed folder
+    # build/app, so the start command never depends on a glob matching exactly one directory.
     buildCommand: >-
-      rm -rf build && python -c "import io,os,tarfile,urllib.request as u;
+      (pip install reportlab==4.4.10 || echo "reportlab install failed: PDF export disabled")
+      && rm -rf build && python -c "import io,os,tarfile,urllib.request as u;
       t=os.environ['REDCELL_TAG'];
       tarfile.open(fileobj=io.BytesIO(u.urlopen('https://codeload.github.com/larptech-70/red-cell/tar.gz/refs/tags/'+t).read())).extractall('build',filter='data')"
       && mv build/red-cell-* build/app
@@ -19,7 +21,7 @@ services:
     healthCheckPath: /api/info
     envVars:
       - key: REDCELL_TAG
-        value: v1.3-submission
+        value: v1.4-submission
       - key: REDCELL_HOST
         value: 0.0.0.0
       - key: REDCELL_PUBLIC
