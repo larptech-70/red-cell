@@ -16,6 +16,8 @@ jobs:
     permissions:
       contents: read
       security-events: write
+      pull-requests: write
+      issues: write
 
     steps:
       - name: Checkout Code
@@ -66,3 +68,17 @@ jobs:
         with:
           sarif_file: ${{ steps.sarif.outputs.file }}
           category: redcell-agent-security
+
+      - name: Generate PR Security Comment & Job Summary
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/pr_commenter.py --write-step-summary --output reports/pr_comment.md
+
+      - name: Post PR Security Audit Comment
+        if: always() && github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/pr_commenter.py --post || echo "Note: PR comment posting skipped or token lacks write permission."
