@@ -45,6 +45,8 @@ h2{margin:0 0 14px;font-size:1rem;font-weight:700}
 .msg small{display:block;font:500 .78rem var(--ui);opacity:.7;margin-bottom:2px}
 .sh{align-self:flex-end;max-width:42rem;font:.86rem/1.4 ui-monospace,Menlo,monospace;padding:6px 10px;border-radius:4px;background:var(--panel);border:1px dashed var(--line);color:var(--muted)}
 .sh.dangerous{border:1px solid var(--breach);background:var(--breach-bg);color:var(--breach);animation:breach .9s ease-out 1}
+.sh.blocked{border:1px solid var(--held);background:var(--held-bg);color:var(--held);text-decoration:line-through;text-decoration-thickness:1px}
+.sh.blocked .tag{display:inline-block;margin-left:8px;font-weight:700;text-decoration:none}
 @keyframes breach{0%{box-shadow:0 0 0 0 var(--breach)}100%{box-shadow:0 0 0 14px transparent}}
 .verdict{align-self:center;font-size:.88rem;color:var(--muted);padding:2px 10px}
 .verdict.landed{color:var(--breach);font-weight:700}
@@ -126,7 +128,9 @@ function handle(e){
   else if(e.type==='attack'){const m=el('div','msg atk');m.append(el('small',null,'RedCell, turn '+e.n));m.append(document.createTextNode(e.text));feed.append(m)}
   else if(e.type==='reply'){
     const m=el('div','msg tgt');m.append(el('small',null,'OrbitOps'));m.append(document.createTextNode(e.text));feed.append(m);
-    e.tool_calls.forEach(c=>feed.append(el('div','sh '+c.risk,'$ '+c.cmd+(c.risk==='dangerous'?'   <- '+c.why:''))))}
+    e.tool_calls.forEach(c=>{const d=el('div','sh '+c.risk,'$ '+c.cmd+(c.risk==='dangerous'?'   <- '+c.why:''));
+      if(c.risk==='blocked'){const t=el('span','tag','⛔ blocked by policy, did not run');d.append(t)}
+      feed.append(d)})}
   else if(e.type==='verdict'){const v=el('div','verdict '+e.verdict,e.verdict==='landed'?'Landed: '+(e.evidence||e.reason):e.verdict==='partial'?'Partly: '+e.reason:'Blocked: '+e.reason);feed.append(v)}
   else if(e.type==='goal_end'){setGoal(e.goal,e.landed?'landed':'held',e.landed?'Broken in '+e.turns+' turn'+(e.turns>1?'s':''):'Held for '+e.turns+' turns')}
   else if(e.type==='budget_stop'||e.type==='error'){feed.append(el('div','verdict landed',e.text))}

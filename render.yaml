@@ -1,0 +1,35 @@
+# Render Blueprint for the public RedCell demo (free web service).
+# The build downloads a fixed git tag (REDCELL_TAG), so later pushes to main never change what judges see.
+# Keys are NOT in this file: NEBIUS_API_KEY / TAVILY_API_KEY use sync:false, so Render asks for them in
+# the dashboard and stores them as secret environment variables.
+services:
+  - type: web
+    name: redcell-demo
+    runtime: python
+    plan: free
+    autoDeploy: false
+    buildCommand: >-
+      python -c "import io,os,tarfile,urllib.request as u;
+      t=os.environ['REDCELL_TAG'];
+      tarfile.open(fileobj=io.BytesIO(u.urlopen('https://codeload.github.com/larptech-70/red-cell/tar.gz/refs/tags/'+t).read())).extractall('build',filter='data')"
+    startCommand: cd build/red-cell-* && exec python -m redcell.server
+    healthCheckPath: /api/info
+    envVars:
+      - key: REDCELL_TAG
+        value: v1.1-submission
+      - key: REDCELL_HOST
+        value: 0.0.0.0
+      - key: REDCELL_PUBLIC
+        value: "1"
+      - key: REDCELL_RUNS_PER_VISITOR
+        value: "2"
+      - key: REDCELL_DAILY_BUDGET_USD
+        value: "0.50"
+      - key: REDCELL_BUDGET_USD
+        value: "0.50"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: NEBIUS_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
