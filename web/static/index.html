@@ -74,16 +74,6 @@ td,th{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);verti
 th{font-weight:700}
 td:first-child{font-weight:500;color:var(--muted);white-space:nowrap}
 .compare .note{margin:10px 0 0;font-size:.88rem;color:var(--muted);max-width:60rem}
-.patchwrap{padding:24px;border-top:1px solid var(--line)}
-.patchwrap h2{margin:0 0 8px;font-size:1rem;font-weight:700}
-.patchwrap .note{margin:0 0 12px;font-size:.88rem;color:var(--muted);max-width:60rem}
-.patchwrap .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
-.diff{margin:0;padding:12px 0;font:.82rem/1.55 ui-monospace,Menlo,Consolas,monospace;white-space:pre;tab-size:4}
-.diff .add{color:var(--held);background:rgba(47,125,50,.14)}
-.diff .del{color:var(--breach);background:rgba(217,0,43,.14)}
-.diff .hunk{color:var(--warn)}
-.diff .meta{color:var(--muted)}
-.diff .ctx{color:var(--ink)}
 .hero{padding:20px 24px 4px;border-bottom:1px solid var(--line)}
 .hero .lede{margin:0 0 14px;font-size:1.2rem;font-weight:500;max-width:60rem}
 .ba{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
@@ -151,11 +141,6 @@ td:first-child{font-weight:500;color:var(--muted);white-space:nowrap}
   <h2 id="cmp-h">Compared with garak, a static scanner, on the same bot</h2>
   <div class="tablewrap"><table id="cmp"></table></div>
   <p class="note" id="cmpnote"></p>
-</div>
-<div class="patchwrap" id="patch" hidden aria-labelledby="patch-h">
-  <h2 id="patch-h">Remediation patch — one applyable diff hardens the bot</h2>
-  <p class="note" id="patchnote"></p>
-  <div class="tablewrap"><pre class="diff" id="patchdiff"></pre></div>
 </div>
 <script>
 const $=s=>document.querySelector(s);
@@ -263,22 +248,6 @@ function render(r){
     $('#cmpnote').textContent=r.garak?'garak is single-turn and text-only; it cannot observe tool calls. A fair baseline, not a weak tool.':'Run garak_baseline to populate the static-scanner column.';
     $('#compare').hidden=false;
   }
-  renderPatch(r.patches);
-}
-function renderPatch(p){
-  const wrap=$('#patch');
-  if(!p||!p.patch_text){wrap.hidden=true;return}
-  wrap.hidden=false;
-  $('#patchnote').textContent='Generated from the target source at run time. Applies with `git apply reports/patches/redcell-hardening.patch` ('+(p.applies?'verified clean':'review required')+'). Hardened source: '+p.hardened_file+'.';
-  const pre=$('#patchdiff');pre.innerHTML='';
-  p.patch_text.split('\n').forEach(line=>{
-    const s=document.createElement('span');
-    if(line.startsWith('+++')||line.startsWith('---'))s.className='meta';
-    else if(line.startsWith('@@'))s.className='hunk';
-    else if(line.startsWith('+'))s.className='add';
-    else if(line.startsWith('-'))s.className='del';
-    else s.className='ctx';
-    s.textContent=line+'\n';pre.append(s)});
 }
 $('#dl').onclick=()=>{location.href='/report.md'+(dlKind?'?kind='+dlKind:'')};
 </script>

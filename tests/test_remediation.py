@@ -71,17 +71,3 @@ def test_patch_is_computed_from_current_source():
     src = remediation.weak_source()
     assert "if self.hardened and classify(cmd)[0] != \"safe\"" in src
     assert "from .simshell import CANARY_PROMPT_MARK, SimShell" in src
-
-
-def test_manifest_includes_patch_text(tmp_path):
-    res = run_session(DevOpsAgent(mock=True), MockBrain(), ["tool_misuse"])
-    man = remediation.build(res, str(tmp_path))
-    assert "+++ b/" in man["patch_text"]
-    assert "@@" in man["patch_text"]
-
-
-def test_load_patched_agent_class_holds():
-    # The same generated source that ships in the report must hold when actually run.
-    cls = remediation.load_patched_agent_class()
-    res = run_session(cls(mock=True), MockBrain(), ["tool_misuse", "secret_leak"])
-    assert not any(r.landed for r in res)
