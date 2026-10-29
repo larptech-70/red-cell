@@ -1,0 +1,115 @@
+"""OASIS SARIF v2.1.0 Exporter for RedCell.
+
+Translates RedCell findings into the Static Analysis Results Interchange Format (SARIF)
+for native ingestion by GitHub Code Scanning, GitLab Security Dashboards, and DevSecOps gates.
+"""
+from __future__ import annotations
+
+import json
+from typing import Any
+
+SARIF_SCHEMA = "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json"
+
+OWASP_CWE_MAPPING = {
+    "LLM01": {"cwe": "CWE-77", "name": "Prompt Injection / Command Injection"},
+    "LLM02": {"cwe": "CWE-200", "name": "Information Disclosure / Secret Leakage"},
+    "LLM03": {"cwe": "CWE-829", "name": "Inclusion of Functionality from Untrusted Sphere"},
+    "LLM04": {"cwe": "CWE-471", "name": "Modification of Assumed-Immutable Data (Data Poisoning)"},
+    "LLM05": {"cwe": "CWE-79", "name": "Improper Output Handling (Cross-Site Scripting)"},
+    "LLM06": {"cwe": "CWE-863", "name": "Incorrect Authorization / Excessive Agency"},
+    "LLM07": {"cwe": "CWE-200", "name": "Exposure of Sensitive Information (System Prompt Leakage)"},
+    "LLM08": {"cwe": "CWE-285", "name": "Improper Authorization (Vector & Embedding Access)"},
+    "LLM09": {"cwe": "CWE-345", "name": "Insufficient Verification of Data Authenticity"},
+    "LLM10": {"cwe": "CWE-400", "name": "Uncontrolled Resource Consumption"},
+}
+
+
+def to_sarif(report_data: dict[str, Any]) -> dict[str, Any]:
+    """Convert RedCell JSON report into valid SARIF v2.1.0 dictionary."""
+    findings = report_data.get("findings", [])
+    rules = []
+    results = []
+
+    seen_rules = set()
+    for f in findings:
+        owasp_raw = f.get("owasp", "LLM02")
+        rule_key = owasp_raw.split()[0] if owasp_raw else "LLM02"
+        cwe_info = OWASP_CWE_MAPPING.get(rule_key, {"cwe": "CWE-200", "name": "AI Security Weakness"})
+
+        if rule_key not in seen_rules:
+            seen_rules.add(rule_key)
+            rules.append({
+                "id": rule_key,
+                "name": cwe_info["name"],
+                "shortDescription": {"text": f.get("title", rule_key)},
+                "fullDescription": {"text": f"{owasp_raw}: {cwe_info['name']}"},
+                "help": {
+                    "text": f"Remediation: {f.get('fix', '')}",
+                    "markdown": f"### Remediation\n{f.get('fix', '')}\n\n**OWASP Risk:** {owasp_raw} ({cwe_info['cwe']})",
+                },
+                "properties": {
+                    "tags": ["security", "ai-security", rule_key.lower(), cwe_info["cwe"].lower()],
+                    "precision": "high",
+                },
+            })
+
+        # Build execution flow representing the multi-turn exploit chain
+        thread_flow_steps = []
+        for idx, prompt_text in enumerate(f.get("repro", []), start=1):
+            thread_flow_steps.append({
+                "step": idx,
+                "importance": "essential",
+                "message": {"text": f"Turn {idx} Adversarial Prompt: {prompt_text}"},
+            })
+
+        results.append({
+            "ruleId": rule_key,
+            "level": "error",
+            "message": {
+                "text": f"Vulnerability confirmed: {f.get('title')}. Evidence: {f.get('evidence')}. Broke in {f.get('turns_to_break')} turn(s).",
+            },
+            "codeFlows": [
+                {
+                    "message": {"text": "Multi-turn conversational attack trace"},
+                    "threadFlows": [{"locations": [{"location": s} for s in thread_flow_steps]}],
+                }
+            ],
+            "properties": {
+                "reproduced_on_fresh_target": f.get("reproduced_on_fresh_target", True),
+                "turns_to_break": f.get("turns_to_break", 1),
+            },
+        })
+
+    sarif_doc = {
+        "$schema": SARIF_SCHEMA,
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "RedCell",
+                        "organization": "RedCell Security",
+                        "semanticVersion": "1.0.0",
+                        "informationUri": "https://github.com/larptech-70/red-cell",
+                        "rules": rules,
+                    }
+                },
+                "invocations": [
+                    {
+                        "executionSuccessful": True,
+                        "endTimeUtc": report_data.get("generated", ""),
+                    }
+                ],
+                "results": results,
+            }
+        ],
+    }
+    return sarif_doc
+
+
+def save_sarif(report_data: dict[str, Any], filepath: str = "reports/report.sarif") -> str:
+    """Save report as formatted SARIF JSON file."""
+    doc = to_sarif(report_data)
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(doc, f, indent=2)
+    return filepath

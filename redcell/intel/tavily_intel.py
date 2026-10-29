@@ -29,6 +29,13 @@ QUERIES = {
     "prompt_leak": "OWASP LLM07 system prompt leakage mitigation preventing system prompt extraction from an LLM",
     "tool_misuse": "OWASP LLM06 excessive agency preventing destructive shell or tool command execution by AI agents",
     "pii_leak": "preventing customer PII and email exposure from LLM agents sensitive information disclosure defenses",
+    "prompt_injection": "OWASP LLM01 prompt injection defenses separating instructions from untrusted data in LLMs",
+    "supply_chain": "OWASP LLM03 supply chain vulnerabilities securing third party packages and models in AI agents",
+    "data_poisoning": "OWASP LLM04 data and model poisoning preventing integrity tampering in LLM agent memory and files",
+    "improper_output": "OWASP LLM05 improper output handling sanitizing LLM outputs to prevent XSS and SSRF",
+    "vector_weakness": "OWASP LLM08 vector and embedding weaknesses access controls on RAG and vector database embeddings",
+    "misinformation": "OWASP LLM09 misinformation hallucination grounding agent outputs in verifiable telemetry",
+    "unbounded_consumption": "OWASP LLM10 unbounded consumption preventing denial of wallet and infinite loops in LLM agents",
 }
 
 
@@ -42,7 +49,7 @@ def _endpoint(explicit: str | None = None) -> str:
 
 def search(query: str, *, api_key: str | None = None, endpoint: str | None = None,
            max_results: int = 3, search_depth: str = "advanced", topic: str = "general",
-           timeout: int = 20) -> list[dict]:
+           timeout: int = 5) -> list[dict]:
     """One Tavily search. Returns a list of {title, url, snippet, score}; [] if no key."""
     key = _api_key(api_key)
     if not key:

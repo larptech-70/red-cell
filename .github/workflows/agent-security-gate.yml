@@ -1,0 +1,52 @@
+name: RedCell Agent DevSecOps Gate
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  agent-redteam-eval:
+    name: Autonomous Agent Security Evaluation
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run Test Suite
+        run: |
+          python -m pytest -v
+
+      - name: Execute RedCell Security Evaluation
+        env:
+          NEBIUS_API_KEY: ${{ secrets.NEBIUS_API_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          REDCELL_BUDGET_USD: "0.50"
+        run: |
+          # Evaluates against hardened agent policy
+          python scripts/run_demo.py --hardened
+
+      - name: Upload SARIF Security Report to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('reports/report.sarif') != ''
+        with:
+          sarif_file: reports/report.sarif
+          category: redcell-agent-security

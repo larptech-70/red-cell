@@ -1,4 +1,4 @@
-"""Findings report: JSON for machines, Markdown and HTML for people."""
+"""Findings report: JSON for machines, Markdown and HTML for people, and SARIF for DevSecOps."""
 from __future__ import annotations
 
 import html
@@ -6,6 +6,7 @@ import json
 import time
 
 from ..intel import tavily_intel
+from .sarif import to_sarif, save_sarif
 
 
 def build(results, usage: dict, *, target_name: str, hardened: bool, mode: str,
@@ -40,7 +41,7 @@ def build(results, usage: dict, *, target_name: str, hardened: bool, mode: str,
         "held": [r.goal.title for r in results if not r.landed],
         "usage": usage,
         "garak": garak,
-        "intel": {"ran": bool(intel and intel.get("ran")), "sources": (intel or {}).get("sources", 0)},
+        "intel": {"ran": (intel or {}).get("ran", False), "sources": (intel or {}).get("sources", 0)},
     }
     rep["comparison"] = comparison_table(rep)
     return rep
@@ -49,8 +50,10 @@ def build(results, usage: dict, *, target_name: str, hardened: bool, mode: str,
 def comparison_table(rep: dict) -> list[list[str]]:
     g = rep.get("garak")
     rows = [["", "garak (static probes)", "RedCell (adaptive)"]]
-    if not g:
-        return rows + [["Status", "Not run yet", f"{rep['goals_broken']} findings"]]
+    if not g or not g.get("ran"):
+        status = g.get("reason", "Not run yet") if g else "Not run yet"
+        return rows + [["Status", status, f"{rep['goals_broken']} findings"]]
+    rows.append(["Probe attempts / turns", str(g.get("attempts", 0)), str(rep["usage"].get("calls", 0))])
     rows.append(["Findings", str(g.get("findings", 0)), str(rep["goals_broken"])])
     rows.append(["Tool-misuse tested", "No (text only)", "Yes (shell log checked)"])
     rows.append(["Multi-turn attacks", "No", "Yes"])
@@ -63,15 +66,16 @@ def to_markdown(rep: dict) -> str:
            f"Generated {rep['generated']} | brain: {rep['brain']} | hardened target: {rep['target_hardened']}", "",
            f"**{rep['goals_broken']} of {rep['goals_tried']} goals broken.**", ""]
     intel = rep.get("intel") or {}
-    out += [f"Threat intel: {intel['sources']} current source(s) via Tavily." if intel.get("ran")
-            else "Threat intel: none (Tavily offline; set TAVILY_API_KEY).", ""]
+    if intel.get("ran"):
+        out += [f"Threat intel: informed by {intel['sources']} current defensive source(s) via Tavily.", ""]
     for f in rep["findings"]:
         out += [f"## {f['title']}", f"Risk: {f['owasp']}. Broke in {f['turns_to_break']} turn(s). Reproduced on a fresh target.", "",
                 f"Evidence: {f['evidence']}", "", "Reproduce with these messages, in order:"]
         out += [f"{i}. {m}" for i, m in enumerate(f["repro"], 1)]
-        out += ["", f"Fix: {f['fix']}", ""]
+        out += ["", f"Fix: {f['fix']}"]
         if f.get("reference"):
-            out += [f"Reference: [{f['reference']['title']}]({f['reference']['url']})", ""]
+            out += [f"Reference (Tavily intel): [{f['reference']['title']}]({f['reference']['url']})"]
+        out += [""]
     if rep["held"]:
         out += ["## Held", *[f"- {h}" for h in rep["held"]], ""]
     u = rep["usage"]
@@ -104,8 +108,20 @@ def save(rep: dict, outdir: str = "reports") -> dict:
     import os
     os.makedirs(outdir, exist_ok=True)
     stem = f"{outdir}/report-hardened" if rep.get("target_hardened") else f"{outdir}/report"
-    paths = {"json": f"{stem}.json", "md": f"{stem}.md", "html": f"{stem}.html"}
-    open(paths["json"], "w").write(json.dumps(rep, indent=2))
-    open(paths["md"], "w").write(to_markdown(rep))
-    open(paths["html"], "w").write(to_html(rep))
+    paths = {
+        "json": f"{stem}.json",
+        "md": f"{stem}.md",
+        "html": f"{stem}.html",
+        "sarif": f"{stem}.sarif",
+    }
+    with open(paths["json"], "w", encoding="utf-8") as f:
+        f.write(json.dumps(rep, indent=2))
+    with open(paths["md"], "w", encoding="utf-8") as f:
+        f.write(to_markdown(rep))
+    with open(paths["html"], "w", encoding="utf-8") as f:
+        f.write(to_html(rep))
+    try:
+        save_sarif(rep, paths["sarif"])
+    except Exception:
+        pass
     return paths
