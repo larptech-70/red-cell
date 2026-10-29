@@ -3,7 +3,7 @@
 The dashboard is a single stdlib Python process (`python -m redcell.server`) with no dependencies. It runs on a
 **Render free web service**, set up from [`render.yaml`](render.yaml).
 
-- **Pinned code:** the build downloads the git tag `v1.1-submission`, so later pushes to `main` never change
+- **Pinned code:** the build downloads the git tag `v1.2-submission`, so later pushes to `main` never change
   what judges see. `autoDeploy` is off as well.
 - **No secrets in files:** `NEBIUS_API_KEY`, `TAVILY_API_KEY` and the judge code `REDCELL_RUN_CODE` are marked
   `sync: false`. Render asks for them in its dashboard and stores them as secret environment variables.
@@ -48,7 +48,7 @@ doesn't depend on disk, so only people who have the judge code can start a live 
 
 ## Click-by-click (Render)
 
-Prerequisite: the tag `v1.1-submission` exists on GitHub (`git ls-remote --tags origin v1.1-submission`).
+Prerequisite: the tag `v1.2-submission` exists on GitHub (`git ls-remote --tags origin v1.2-submission`).
 
 1. Go to <https://dashboard.render.com> and sign in with **GitHub**. Use the account that can see
    `larptech-70/red-cell`.
@@ -115,5 +115,5 @@ The first request after 15 idle minutes takes about a minute, so tell judges tha
   `.dockerignore` keeps `.env` and `reports/` out of the image.
 - **Nebius Serverless AI endpoint (paid, not used):** image `python:3.12-slim`, port `8765`, the same env vars,
   keys as secret env vars, and an entrypoint that downloads the tag tarball:
-  `sh -c "python -c \"import io,tarfile,urllib.request as u;tarfile.open(fileobj=io.BytesIO(u.urlopen('https://codeload.github.com/larptech-70/red-cell/tar.gz/refs/tags/v1.1-submission').read())).extractall('/srv',filter='data')\" && cd /srv/red-cell-* && exec python -m redcell.server"`.
+  `sh -c "python -c \"import io,tarfile,urllib.request as u;tarfile.open(fileobj=io.BytesIO(u.urlopen('https://codeload.github.com/larptech-70/red-cell/tar.gz/refs/tags/v1.2-submission').read())).extractall('/srv',filter='data')\" && cd /srv/red-cell-* && exec python -m redcell.server"`.
   The smallest CPU preset is about $0.06/hour.

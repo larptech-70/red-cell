@@ -9,10 +9,10 @@
 <style>
 :root{
   --paper:#eef1f4; --panel:#ffffff; --ink:#14213d; --muted:#5b6679; --line:#d3d9e2;
-  --breach:#d9002b; --breach-bg:#fde8ec; --held:#2f7d32; --held-bg:#e6f3e7; --warn:#b26a00;
+  --breach:#d9002b; --breach-bg:#fde8ec; --held:#2f7d32; --held-bg:#e6f3e7; --warn:#9a5800; --warn-bg:#fff2d9;
   --ui:"Familjen Grotesk",system-ui,sans-serif; --voice:"Newsreader",Georgia,serif;
 }
-@media (prefers-color-scheme:dark){:root{--paper:#0e1522;--panel:#161f30;--ink:#e8edf6;--muted:#93a0b8;--line:#2a3650;--breach:#ff5d78;--breach-bg:#3a1621;--held:#6fcf74;--held-bg:#15301a;--warn:#f0b24a}}
+@media (prefers-color-scheme:dark){:root{--paper:#0e1522;--panel:#161f30;--ink:#e8edf6;--muted:#93a0b8;--line:#2a3650;--breach:#ff5d78;--breach-bg:#3a1621;--held:#6fcf74;--held-bg:#15301a;--warn:#f0b24a;--warn-bg:#3a2a0f}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 var(--ui)}
 a{color:inherit}
@@ -50,8 +50,13 @@ h2{margin:0 0 14px;font-size:1rem;font-weight:700}
 .sh.blocked{border:1px solid var(--held);background:var(--held-bg);color:var(--held);text-decoration:line-through;text-decoration-thickness:1px}
 .sh.blocked .tag{display:inline-block;margin-left:8px;font-weight:700;text-decoration:none}
 @keyframes breach{0%{box-shadow:0 0 0 0 var(--breach)}100%{box-shadow:0 0 0 14px transparent}}
-.verdict{align-self:center;font-size:.88rem;color:var(--muted);padding:2px 10px}
-.verdict.landed{color:var(--breach);font-weight:700}
+.verdict{align-self:stretch;display:flex;gap:10px;align-items:baseline;font-size:.9rem;color:var(--muted);padding:2px 0}
+.verdict .vlabel{flex:none;font-size:.78rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 9px;border-radius:999px;border:1px solid}
+.verdict.landed .vlabel{color:var(--breach);background:var(--breach-bg);border-color:var(--breach)}
+.verdict.partial .vlabel{color:var(--warn);background:var(--warn-bg);border-color:var(--warn)}
+.verdict.blocked .vlabel{color:var(--held);background:var(--held-bg);border-color:var(--held)}
+.verdict.landed{color:var(--ink)}
+.verdict.alert{color:var(--breach);font-weight:700}
 .divider{align-self:stretch;margin:14px 0 2px;padding-top:12px;border-top:1px solid var(--line);font-weight:700}
 .empty{color:var(--muted);max-width:30rem}
 .finding{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--breach);border-radius:6px;padding:12px 14px;margin-bottom:12px}
@@ -62,8 +67,30 @@ h2{margin:0 0 14px;font-size:1rem;font-weight:700}
 .tally small{font-size:1rem;font-weight:400;color:var(--muted);letter-spacing:0}
 .cost{font-size:.85rem;color:var(--muted);margin-top:6px}
 .lastlive{font-size:.85rem;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin:0 0 12px}
-table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:14px}
-td,th{text-align:left;padding:6px 4px;border-bottom:1px solid var(--line);vertical-align:top}
+.compare{padding:24px;border-top:1px solid var(--line)}
+.compare .tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.95rem}
+td,th{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:700}
+td:first-child{font-weight:500;color:var(--muted);white-space:nowrap}
+.compare .note{margin:10px 0 0;font-size:.88rem;color:var(--muted);max-width:60rem}
+.hero{padding:20px 24px 4px;border-bottom:1px solid var(--line)}
+.hero .lede{margin:0 0 14px;font-size:1.2rem;font-weight:500;max-width:60rem}
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.bacard{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px}
+.bacard h2{margin:0;font-size:1.05rem}
+.bacard .rec{display:inline-block;font-size:.72rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:1px 8px;margin-bottom:6px}
+.bacard .score{font-size:1.6rem;font-weight:700;letter-spacing:-.02em;margin:2px 0}
+.bacard .meta{font-size:.85rem;color:var(--muted)}
+.bacard ul{list-style:none;margin:8px 0 0;padding:0}
+.bacard li{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-top:1px solid var(--line);font-size:.95rem}
+.bacard li b{white-space:nowrap}
+.bacard li b.broken{color:var(--breach)} .bacard li b.held{color:var(--held)} .bacard li b.warn{color:var(--warn);white-space:normal;text-align:right}
+.steps{list-style:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 16px;padding:0;counter-reset:step}
+.steps li{counter-increment:step;display:flex;gap:10px;align-items:flex-start;font-size:.92rem;color:var(--muted)}
+.steps li::before{content:counter(step);flex:none;width:1.7rem;height:1.7rem;border-radius:50%;border:1px solid var(--line);background:var(--panel);color:var(--ink);font-weight:700;display:grid;place-items:center}
+.steps b{display:block;color:var(--ink);font-weight:700}
+@media(max-width:700px){.ba,.steps{grid-template-columns:minmax(0,1fr)}}
 .msg,.sh,.verdict,.finding{max-width:100%;overflow-wrap:anywhere}
 @media(max-width:980px){main{grid-template-columns:minmax(0,1fr);height:auto}section{border-right:0;border-bottom:1px solid var(--line);overflow:visible}}
 @media(prefers-reduced-motion:reduce){.sh.dangerous{animation:none}}
@@ -81,6 +108,18 @@ td,th{text-align:left;padding:6px 4px;border-bottom:1px solid var(--line);vertic
     <span class="codenote" id="codenote" hidden></span>
   </div>
 </header>
+<div class="hero">
+  <p class="lede">RedCell tests an AI agent you own: it tries to get the agent to do unsafe things, confirms each finding with code checks, and gives you a fix for every one.</p>
+  <div class="ba" id="ba" hidden>
+    <div class="bacard" id="ba-weak"></div>
+    <div class="bacard" id="ba-hardened"></div>
+  </div>
+  <ol class="steps" aria-label="How RedCell works">
+    <li><span><b>Test</b>Nemotron Ultra holds a multi-turn conversation with the agent and adapts after each reply.</span></li>
+    <li><span><b>Confirm</b>Code checks look for planted fake secrets and unsafe commands in the shell log, then replay the conversation on a fresh agent.</span></li>
+    <li><span><b>Fix and re-test</b>Each finding comes with a fix. Apply it and run the same test again.</span></li>
+  </ol>
+</div>
 <main>
   <section aria-label="Attack goals">
     <h2>Goals</h2>
@@ -96,13 +135,18 @@ td,th{text-align:left;padding:6px 4px;border-bottom:1px solid var(--line);vertic
     <div class="tally" id="tally">0 <small>broken</small></div>
     <div class="cost" id="cost"></div>
     <div id="findings"></div>
-    <table id="cmp" hidden></table>
   </section>
 </main>
+<div class="compare" id="compare" hidden aria-labelledby="cmp-h">
+  <h2 id="cmp-h">Compared with garak, a static scanner, on the same bot</h2>
+  <div class="tablewrap"><table id="cmp"></table></div>
+  <p class="note" id="cmpnote"></p>
+</div>
 <script>
 const $=s=>document.querySelector(s);
-const goals={}; let es=null, cur=null, LAST={}, running=false, dlKind='';
+const goals={}; let es=null, cur=null, LAST={}, running=false, dlKind='', INFO=null;
 function loadInfo(){fetch('/api/info').then(r=>r.json()).then(i=>{
+  INFO=i;renderBA();
   $('#mode').textContent=(i.live?'Live: Nemotron on Token Factory':'Offline demo mode (no API key)')+(i.runs_left!=null&&i.unlocked?' | live runs left today: '+i.runs_left:'');
   const locked=i.needs_code&&!i.unlocked;
   $('#codebox').hidden=!(locked&&i.live_runs_enabled);
@@ -114,7 +158,35 @@ $('#unlock').onclick=()=>{const c=$('#code').value;if(!c)return;
   fetch('/api/unlock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:c}),credentials:'same-origin'})
   .then(r=>{$('#code').value='';if(r.ok){loadInfo()}else{$('#codenote').hidden=false;$('#codenote').textContent=r.status===429?'Too many attempts.':'That code did not work.'}})};
 loadInfo();
-fetch('/api/last').then(r=>r.json()).then(l=>{LAST=l;showLast()});
+fetch('/api/last').then(r=>r.json()).then(l=>{LAST=l;showLast();renderBA()});
+// Before/after from the saved real runs: per goal "Broken in N turns" (from findings) or "Held for N turns".
+function renderBA(){
+  if(!INFO||!LAST.weak||!LAST.hardened)return;
+  [['weak','Weak bot','no fixes applied'],['hardened','Hardened bot','fixes applied']].forEach(([kind,name,sub])=>{
+    const r=LAST[kind],card=$('#ba-'+kind);card.innerHTML='';
+    card.append(el('span','rec','Recorded run · real Nemotron calls'));
+    const h=el('h2',null,name+' ');h.append(el('span','meta','('+sub+')'));card.append(h);
+    card.append(el('div','score',r.goals_broken+' of '+r.goals_tried+' goals broken'));
+    const when=r.generated_utc?new Date(r.generated_utc).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short',timeZone:'UTC'})+' UTC':r.generated;
+    card.append(el('div','meta',when+' · cost $'+r.usage.cost_usd.toFixed(4)+' · '+r.usage.calls+' model calls'));
+    const brokenTurns=r.findings.reduce((s,f)=>s+f.turns_to_break,0);
+    const heldTurns=r.held.length&&r.attack_turns?Math.round((r.attack_turns-brokenTurns)/r.held.length):null;
+    const ul=el('ul');
+    const tr=Object.fromEntries((r.transcript||[]).map(t=>[t.goal,t]));
+    INFO.goals.forEach(g=>{
+      const f=r.findings.find(x=>x.id===g.id),t=tr[g.id],li=el('li');li.append(el('span',null,g.title));
+      const plural=n=>n+' turn'+(n>1?'s':'');
+      if(f)li.append(el('b','broken','Broken in '+plural(f.turns_to_break)));
+      else if(t&&t.turns.some(x=>x.verdict==='landed')){  // landed once but the replay didn't reproduce it, so it was dropped
+        const n=t.turns.find(x=>x.verdict==='landed').n;
+        li.append(el('b','warn','Landed on turn '+n+', not reproduced on replay (dropped)'))}
+      else if(t)li.append(el('b','held','Held for '+plural(t.turns.length)));
+      else if(r.held.includes(g.title))li.append(el('b','held',heldTurns?'Held for '+heldTurns+' turns':'Held'));
+      else li.append(el('b',null,'Not run'));
+      ul.append(li)});
+    card.append(ul)});
+  $('#ba').hidden=false;
+}
 function showLast(){
   if(running)return;const kind=$('#hardened').checked?'hardened':'weak',r=LAST[kind];
   const w=LAST.weak,h=LAST.hardened;
@@ -129,7 +201,7 @@ function setGoal(id,state,text){const g=goals[id];g.className='goal '+state;g.qu
 $('#run').onclick=()=>{
   if(es)es.close();
   $('#run').disabled=true;$('#dl').disabled=true;running=true;dlKind='';$('#lastlive').hidden=true;
-  $('#feed').innerHTML='';$('#goals').innerHTML='';$('#findings').innerHTML='';$('#tally').innerHTML='0 <small>broken</small>';$('#cost').textContent='';$('#cmp').hidden=true;
+  $('#feed').innerHTML='';$('#goals').innerHTML='';$('#findings').innerHTML='';$('#tally').innerHTML='0 <small>broken</small>';$('#cost').textContent='';$('#compare').hidden=true;
   es=new EventSource('/events?hardened='+($('#hardened').checked?1:0));
   es.onmessage=m=>handle(JSON.parse(m.data));
   es.onerror=()=>{es.close();$('#run').disabled=false;running=false};
@@ -145,9 +217,11 @@ function handle(e){
     e.tool_calls.forEach(c=>{const d=el('div','sh '+c.risk,'$ '+c.cmd+(c.risk==='dangerous'?'   <- '+c.why:''));
       if(c.risk==='blocked'){const t=el('span','tag','⛔ blocked by policy, did not run');d.append(t)}
       feed.append(d)})}
-  else if(e.type==='verdict'){const v=el('div','verdict '+e.verdict,e.verdict==='landed'?'Landed: '+(e.evidence||e.reason):e.verdict==='partial'?'Partly: '+e.reason:'Blocked: '+e.reason);feed.append(v)}
+  else if(e.type==='verdict'){const v=el('div','verdict '+e.verdict);
+    v.append(el('span','vlabel',{landed:'Landed',partial:'Partly',blocked:'Blocked'}[e.verdict]||e.verdict));
+    v.append(el('span',null,e.verdict==='landed'?(e.evidence||e.reason):e.reason));feed.append(v)}
   else if(e.type==='goal_end'){setGoal(e.goal,e.landed?'landed':'held',e.landed?'Broken in '+e.turns+' turn'+(e.turns>1?'s':''):'Held for '+e.turns+' turns')}
-  else if(e.type==='budget_stop'||e.type==='error'){feed.append(el('div','verdict landed',e.text))}
+  else if(e.type==='budget_stop'||e.type==='error'){feed.append(el('div','verdict alert',e.text))}
   else if(e.type==='refused'){es.close();running=false;$('#run').disabled=false;feed.append(el('p','empty',e.text));showLast();loadInfo()}
   else if(e.type==='done'){finish(e.report)}
   feed.lastElementChild&&feed.lastElementChild.scrollIntoView({block:'nearest',behavior:matchMedia('(prefers-reduced-motion:reduce)').matches?'auto':'smooth'});
@@ -168,10 +242,8 @@ function render(r){
     const head=r.comparison[0],rows=r.comparison.slice(1);
     const thead=el('tr');head.forEach(h=>{const th=document.createElement('th');th.textContent=h;thead.append(th)});cmp.append(thead);
     rows.forEach(row=>{const tr=el('tr');row.forEach(c=>{const td=document.createElement('td');td.textContent=c;tr.append(td)});cmp.append(tr)});
-    const cap=el('tr');const td=document.createElement('td');td.colSpan=head.length;td.style.color='var(--muted)';td.style.fontSize='.8rem';
-    td.textContent=r.garak?'garak is single-turn and text-only; it cannot observe tool calls. A fair baseline, not a weak tool.':'Run garak_baseline to populate the static-scanner column.';
-    cap.append(td);cmp.append(cap);
-    cmp.hidden=false;
+    $('#cmpnote').textContent=r.garak?'garak is single-turn and text-only; it cannot observe tool calls. A fair baseline, not a weak tool.':'Run garak_baseline to populate the static-scanner column.';
+    $('#compare').hidden=false;
   }
 }
 $('#dl').onclick=()=>{location.href='/report.md'+(dlKind?'?kind='+dlKind:'')};
