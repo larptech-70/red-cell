@@ -4,7 +4,7 @@ Say **"NVIDIA Nemotron"** and **"Nebius Token Factory"** out loud, and keep them
 required. Record at 1080p.
 
 **Before recording**
-- Open the public demo (RENDER-URL-HERE) a minute early, because the free host sleeps when idle.
+- Open the public demo (https://redcell-demo.onrender.com) a minute early, because the free host sleeps when idle.
 - Unlock live runs with the judge code. Keep the code off screen.
 - Open the Token Factory usage page in a second tab (Billing → Usage).
 - A live run takes a few minutes, so start it at 0:45 and cut or speed up the waiting. Narrate what actually
@@ -47,5 +47,5 @@ so it can't see tool calls. The two complement each other."
 
 **2:35 Cost and close (10 s).** *Screen: the Token Factory usage page, then back to the dashboard.*
 "Every model call runs on Nebius Token Factory. A full run costs a few cents: these two were about 2 and 3.5
-cents. The
-code is MIT-licensed on GitHub, and the demo is at RENDER-URL-HERE. Thanks, Nebius and NVIDIA."
+cents. The code is MIT-licensed on GitHub, and the demo is at redcell-demo.onrender.com. Thanks, Nebius and
+NVIDIA."

@@ -9,7 +9,7 @@ with code checks and a replay, and gives you remediation guidance for every find
 
 Built for the **Nebius x NVIDIA Global AI Hackathon**, Coding & Agentic Engineering track.
 
-**Live demo: RENDER-URL-HERE.** The page opens with the recorded live runs below, at no cost. To start a new
+**Live demo: https://redcell-demo.onrender.com.** The page opens with the recorded live runs below, at no cost. To start a new
 live run, judges use the code in the Devpost testing instructions. The free host sleeps when idle, so the first
 load can take about a minute.
 

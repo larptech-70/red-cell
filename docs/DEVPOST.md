@@ -1,6 +1,6 @@
 # Devpost submission text
 
-Paste each section into the matching Devpost field. Replace `RENDER-URL-HERE` and `JUDGE-CODE-HERE` before
+Paste each section into the matching Devpost field. Replace `JUDGE-CODE-HERE` before
 submitting.
 
 ---
@@ -125,7 +125,7 @@ Events · garak (baseline) · Render
 
 ## Testing instructions (for judges)
 
-> **Live demo:** RENDER-URL-HERE
+> **Live demo:** https://redcell-demo.onrender.com
 >
 > The page opens with our last two live runs: real NVIDIA Nemotron calls on Nebius Token Factory. Weak bot: 3
 > of 4 goals broken, all confirmed by replay. Hardened bot: 0 confirmed findings; one system-prompt leak
