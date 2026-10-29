@@ -199,12 +199,14 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, (STATIC / "index.html").read_bytes())
         if u.path == "/events":
             return self._events(q)
-        if u.path in ("/report.md", "/report.json", "/report.html", "/report.pdf"):
+        if u.path in ("/report.md", "/report.json", "/report.html", "/report.pdf", "/report.guardrails.zip", "/guardrails.zip"):
             kind = q.get("kind", [""])[0]
             r = LAST_LIVE.get(kind) if kind else (STATE["report"] or LAST_LIVE.get("weak"))
             if r:
                 if u.path == "/report.pdf":
                     return self._send_pdf(r, kind)
+                if u.path in ("/report.guardrails.zip", "/guardrails.zip"):
+                    return self._send_guardrails_zip(r, kind)
                 if u.path == "/report.html":
                     return self._send(200, rpt.to_html(r), "text/html; charset=utf-8")
                 return self._send(200, rpt.to_markdown(r) if u.path.endswith("md") else json.dumps(r, indent=2),
@@ -242,6 +244,20 @@ class H(BaseHTTPRequestHandler):
         except Exception as e:  # always answer -- a hang here would stall a whole garak scan
             reply = f"(target unavailable: {type(e).__name__})"
         self._send(200, json.dumps({"reply": reply}), "application/json")
+
+    def _send_guardrails_zip(self, r: dict, kind: str):
+        try:
+            from .reporting import guardrails
+            body = guardrails.to_zip_bytes(r)
+        except Exception as e:
+            return self._send(500, json.dumps({"error": f"Guardrails zip export failed ({type(e).__name__})"}), "application/json")
+        name = f"redcell-nemo-guardrails-{kind or ('hardened' if r.get('target_hardened') else 'weak')}.zip"
+        self.send_response(200)
+        self.send_header("Content-Type", "application/zip")
+        self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def _send_pdf(self, r: dict, kind: str):
         """PDF via the optional ReportLab package. Missing package or any build error gives a clean JSON error, never a crash."""

@@ -403,6 +403,16 @@ def save(rep: dict, outdir: str = "reports") -> dict:
         pass
 
     try:
+        from . import guardrails
+        g_dir = f"{outdir}/guardrails"
+        guardrails.export_guardrails(rep, g_dir)
+        paths["guardrails_dir"] = g_dir
+        paths["guardrails_zip"] = f"{outdir}/guardrails.zip"
+        guardrails.export_zip(rep, paths["guardrails_zip"])
+    except Exception:
+        pass
+
+    try:
         from . import pdf
         if pdf.available():
             paths["pdf"] = f"{stem}.pdf"
