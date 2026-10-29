@@ -1,6 +1,6 @@
 # RedCell
 
-[![Tests](https://img.shields.io/badge/tests-36%20passing-brightgreen)](#run-it-locally)
+[![Tests](https://img.shields.io/badge/tests-40%20passing-brightgreen)](#run-it-locally)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Models](https://img.shields.io/badge/Models-NVIDIA%20Nemotron%20on%20Nebius%20Token%20Factory-76b900)](#nvidia-nemotron-on-nebius-token-factory)
 
@@ -8,6 +8,8 @@
 with code checks and a replay, and gives you remediation guidance for every finding.
 
 Built for the **Nebius x NVIDIA Global AI Hackathon**, Coding & Agentic Engineering track.
+
+> 🏆 **Submission brief:** how RedCell maps to the four judging criteria and the special prizes — see [SUBMISSION.md](SUBMISSION.md).
 
 **Live demo: https://redcell-demo.onrender.com.** The page opens with the recorded live runs below, at no cost. To start a new
 live run, judges use the code in the Devpost testing instructions. The free host sleeps when idle, so the first
@@ -60,8 +62,9 @@ Each finding then goes through three steps:
    reply, and for dangerous commands in the shell log. **The LLM judge can never mark a turn as landed on its
    own.** Every landed conversation is then replayed on a fresh agent, and findings that don't reproduce are
    dropped.
-3. **Fix and re-test:** each finding comes with remediation guidance, and the hardened bot is the same agent
-   with that guidance applied. Re-running the same test shows what holds.
+3. **Fix and re-test:** each finding ships concrete remediation — a real, `git apply`-able hardening patch
+   (`reports/patches/redcell-hardening.patch`) plus the hardened source — and the hardened bot is the same
+   agent with that guidance applied. Re-running the same test shows what holds.
 
 Watching the tool log matters because an agent can say "I can't do that" in its reply while running a command
 underneath.
@@ -138,7 +141,8 @@ cp .env.example .env            # add NEBIUS_API_KEY (and optionally TAVILY_API_
 python -m redcell.server        # dashboard at http://127.0.0.1:8765
 python scripts/run_demo.py      # same engine in the terminal (weak bot)
 python scripts/run_demo.py --hardened
-python -m pytest -q tests       # 36 tests; pip install pytest (and jsonschema for full SARIF validation)
+python scripts/run_demo.py --compare   # weak vs hardened OWASP table + remediation patch
+python -m pytest -q tests       # 40 tests; pip install pytest (and jsonschema for full SARIF validation)
 ```
 
 Core RedCell uses only the Python standard library. Runs write Markdown, HTML, JSON and SARIF reports to
