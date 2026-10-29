@@ -7,13 +7,11 @@ import time
 
 from ..attacks.goals import GOALS
 from ..intel import tavily_intel
-from . import remediation
 from .sarif import to_sarif, save_sarif
 
 
 def build(results, usage: dict, *, target_name: str, hardened: bool, mode: str,
-          garak: dict | None = None, intel: dict | None = None,
-          patches_dir: str | None = None) -> dict:
+          garak: dict | None = None, intel: dict | None = None) -> dict:
     findings = []
     for r in results:
         if not r.landed:
@@ -33,14 +31,6 @@ def build(results, usage: dict, *, target_name: str, hardened: bool, mode: str,
         if cite:
             f["reference"] = cite
         findings.append(f)
-
-    patches = remediation.build(results, patches_dir) if patches_dir else None
-    if patches:
-        for f in findings:
-            sn = patches["by_goal"].get(f["id"])
-            if sn:
-                f["remediation"] = {"defence": sn["defence"], "patch": patches["patch"]}
-
     rep = {
         "generated": time.strftime("%Y-%m-%d %H:%M:%S"),
         "generated_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -55,7 +45,6 @@ def build(results, usage: dict, *, target_name: str, hardened: bool, mode: str,
         "usage": usage,
         "garak": garak,
         "intel": {"ran": (intel or {}).get("ran", False), "sources": (intel or {}).get("sources", 0)},
-        "patches": patches,
     }
     rep["transcript"] = transcript(results)
     rep["comparison"] = comparison_table(rep)
@@ -122,8 +111,6 @@ def to_markdown(rep: dict) -> str:
                 f"Evidence: {f['evidence']}", "", "Reproduce with these messages, in order:"]
         out += [f"{i}. {m}" for i, m in enumerate(f["repro"], 1)]
         out += ["", f"Fix: {f['fix']}"]
-        if f.get("remediation"):
-            out += [f"Remediation: {f['remediation']['defence']} (see `{f['remediation']['patch']}`)."]
         if f.get("reference"):
             out += [f"Reference (Tavily intel): [{f['reference']['title']}]({f['reference']['url']})"]
         out += [""]
@@ -131,12 +118,6 @@ def to_markdown(rep: dict) -> str:
         out += ["## Held", *[f"- {h}" for h in held_titles(rep)], ""]
     u = rep["usage"]
     out += ["## Run cost", f"{u['calls']} model calls, {u['prompt_tokens'] + u['completion_tokens']} tokens, ${u['cost_usd']:.4f} of ${u['budget_usd']:.2f} budget.", ""]
-    p = rep.get("patches")
-    if p:
-        out += ["## Remediation patch", "",
-                f"One applyable patch hardens OrbitOps against every confirmed finding: `{p['patch']}` "
-                f"({'applies cleanly with `git apply`' if p['applies'] else 'review required'}). "
-                f"Hardened source: `{p['hardened_file']}`.", ""]
     out += ["## Baseline comparison", ""]
     t = comparison_table(rep)
     out += ["| " + " | ".join(t[0]) + " |", "|" + "---|" * len(t[0])]
@@ -150,23 +131,15 @@ def to_html(rep: dict) -> str:
         f"<section><h2>{e(goal_title(f.get('id'), f['title']))}</h2><p>{e(f['owasp'])}. Broke in {f['turns_to_break']} turn(s).</p>"
         f"<p><b>Evidence:</b> {e(f['evidence'])}</p><ol>{''.join(f'<li>{e(m)}</li>' for m in f['repro'])}</ol>"
         f"<p><b>Fix:</b> {e(f['fix'])}</p>"
-        + (f"<p><b>Remediation:</b> {e(f['remediation']['defence'])} (see <code>{e(f['remediation']['patch'])}</code>)</p>" if f.get("remediation") else "")
         + (f"<p><b>Reference:</b> <a href='{e(f['reference']['url'])}'>{e(f['reference']['title'])}</a></p>" if f.get("reference") else "")
         + "</section>" for f in rep["findings"])
     intel = rep.get("intel") or {}
     intel_line = (f"Threat intel: {intel['sources']} current source(s) via Tavily."
                   if intel.get("ran") else "Threat intel: none (Tavily offline).")
-    patch_html = ""
-    p = rep.get("patches")
-    if p:
-        patch_html = (f"<h2>Remediation patch</h2><p>One applyable patch hardens OrbitOps against every "
-                      f"confirmed finding: <code>{e(p['patch'])}</code> "
-                      f"({'applies cleanly with <code>git apply</code>' if p['applies'] else 'review required'}). "
-                      f"Hardened source: <code>{e(p['hardened_file'])}</code>.</p>")
     return (f"<!doctype html><meta charset=utf-8><title>RedCell report</title>"
             f"<body style='font:16px/1.5 system-ui;max-width:46rem;margin:2rem auto;padding:0 1rem'>"
             f"<h1>RedCell report: {e(rep['target'])}</h1><p>{rep['goals_broken']} of {rep['goals_tried']} goals broken.</p>"
-            f"<p>{e(intel_line)}</p>{body}{patch_html}</body>")
+            f"<p>{e(intel_line)}</p>{body}</body>")
 
 
 def save(rep: dict, outdir: str = "reports") -> dict:
