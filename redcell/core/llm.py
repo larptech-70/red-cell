@@ -37,6 +37,11 @@ PRICES = {
 }
 DEFAULT_PRICE = (0.30, 0.90)
 
+# Turns Nemotron 3 reasoning off for a call (documented on NVIDIA's Nemotron-3-Nano model card and
+# verified on Token Factory). Used on the Nano target and judge so hidden reasoning tokens cannot
+# eat max_tokens and leave an empty reply; the Ultra planner keeps reasoning on.
+NO_THINK = {"chat_template_kwargs": {"enable_thinking": False}}
+
 
 class BudgetExceeded(RuntimeError):
     pass
@@ -82,11 +87,13 @@ class Ledger:
 
 
 class TokenFactory:
-    def __init__(self, api_key: str | None = None, base_url: str | None = None, ledger: Ledger | None = None, timeout: int = 90):
+    def __init__(self, api_key: str | None = None, base_url: str | None = None, ledger: Ledger | None = None, timeout: int = 90,
+                 attempts: int = 3):
         self.api_key = api_key or os.environ.get("NEBIUS_API_KEY", "")
         self.base_url = (base_url or os.environ.get("NEBIUS_BASE_URL") or "https://api.tokenfactory.nebius.com/v1/").rstrip("/") + "/"
         self.ledger = ledger or Ledger(float(os.environ.get("REDCELL_BUDGET_USD", "1.50")))
         self.timeout = timeout
+        self.attempts = max(1, attempts)  # 1 = never retry (used for the garak-facing endpoint)
         self.last_latency_ms = 0
 
     @property
@@ -100,7 +107,7 @@ class TokenFactory:
             headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
         )
         last = None
-        for attempt in range(3):
+        for attempt in range(self.attempts):
             try:
                 t0 = time.time()
                 with urllib.request.urlopen(req, timeout=self.timeout) as r:
@@ -114,13 +121,15 @@ class TokenFactory:
                     raise last
             except urllib.error.URLError as e:
                 last = RuntimeError(f"Token Factory unreachable: {e.reason}")
-            time.sleep(1.5 * (attempt + 1))
+            if attempt + 1 < self.attempts:
+                time.sleep(1.5 * (attempt + 1))
         raise last  # type: ignore[misc]
 
-    def chat(self, model: str, messages: list[dict], *, tools: list | None = None, temperature: float = 0.7, max_tokens: int = 700) -> dict:
-        """Returns the first choice's message dict ({'content', 'tool_calls'?})."""
+    def chat(self, model: str, messages: list[dict], *, tools: list | None = None, temperature: float = 0.7, max_tokens: int = 700,
+             extra: dict | None = None) -> dict:
+        """Returns the first choice's message dict ({'content', 'tool_calls'?}). `extra` is merged into the request body."""
         self.ledger.check()
-        body = {"model": model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens}
+        body = {"model": model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens, **(extra or {})}
         if tools:
             body["tools"] = tools
         out = self._post("chat/completions", body)
