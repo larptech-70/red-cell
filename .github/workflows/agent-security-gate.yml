@@ -1,5 +1,7 @@
 name: RedCell Agent DevSecOps Gate
 
+# push / pull_request: tests + an offline mock-mode scan only (no API keys, no spend).
+# workflow_dispatch:   additionally a live hardened scan on Token Factory, capped at $0.25.
 on:
   push:
     branches: [ main ]
@@ -29,24 +31,38 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest
+          pip install pytest jsonschema
 
       - name: Run Test Suite
-        run: |
-          python -m pytest -v
+        run: python -m pytest -v
 
-      - name: Execute RedCell Security Evaluation
+      - name: RedCell scan (offline mock, no spend)
+        if: github.event_name != 'workflow_dispatch'
+        env:
+          NEBIUS_API_KEY: ""
+          TAVILY_API_KEY: ""
+        run: python scripts/run_demo.py --hardened
+
+      - name: RedCell scan (live Nemotron on Token Factory, hardened, $0.25 cap)
+        if: github.event_name == 'workflow_dispatch'
         env:
           NEBIUS_API_KEY: ${{ secrets.NEBIUS_API_KEY }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
-          REDCELL_BUDGET_USD: "0.50"
+          REDCELL_BUDGET_USD: "0.25"
+        run: python scripts/run_demo.py --hardened
+
+      # run_demo.py --hardened writes reports/report-hardened.sarif; a weak run writes reports/report.sarif.
+      - name: Pick SARIF file
+        id: sarif
+        if: always()
         run: |
-          # Evaluates against hardened agent policy
-          python scripts/run_demo.py --hardened
+          for f in reports/report-hardened.sarif reports/report.sarif; do
+            if [ -f "$f" ]; then echo "file=$f" >> "$GITHUB_OUTPUT"; break; fi
+          done
 
       - name: Upload SARIF Security Report to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
-        if: always() && hashFiles('reports/report.sarif') != ''
+        if: always() && steps.sarif.outputs.file != ''
         with:
-          sarif_file: reports/report.sarif
+          sarif_file: ${{ steps.sarif.outputs.file }}
           category: redcell-agent-security

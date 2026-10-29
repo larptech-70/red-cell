@@ -6,9 +6,24 @@ for native ingestion by GitHub Code Scanning, GitLab Security Dashboards, and De
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
-SARIF_SCHEMA = "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json"
+SARIF_SCHEMA = "https://json.schemastore.org/sarif-2.1.0.json"
+REPO_URI = "https://github.com/larptech-70/red-cell"
+# Where a finding "lives": the practice target's prompt + tool gate. GitHub code scanning needs a file location.
+DEFAULT_TARGET_CONFIG = "redcell/target/devops_agent.py"
+DEFAULT_TARGET_ID = "orbitops-demo"
+
+
+def _utc(report_data: dict[str, Any]) -> str:
+    """ISO 8601 UTC with a Z, as SARIF requires."""
+    if report_data.get("generated_utc"):
+        return report_data["generated_utc"]
+    try:  # older reports carry only local "YYYY-MM-DD HH:MM:SS"
+        return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.mktime(time.strptime(report_data["generated"], "%Y-%m-%d %H:%M:%S"))))
+    except (KeyError, ValueError, OverflowError):
+        return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 OWASP_CWE_MAPPING = {
     "LLM01": {"cwe": "CWE-77", "name": "Prompt Injection / Command Injection"},
@@ -27,6 +42,8 @@ OWASP_CWE_MAPPING = {
 def to_sarif(report_data: dict[str, Any]) -> dict[str, Any]:
     """Convert RedCell JSON report into valid SARIF v2.1.0 dictionary."""
     findings = report_data.get("findings", [])
+    target_config = report_data.get("target_config", DEFAULT_TARGET_CONFIG)
+    target_id = report_data.get("target_id", DEFAULT_TARGET_ID)
     rules = []
     results = []
 
@@ -57,9 +74,9 @@ def to_sarif(report_data: dict[str, Any]) -> dict[str, Any]:
         thread_flow_steps = []
         for idx, prompt_text in enumerate(f.get("repro", []), start=1):
             thread_flow_steps.append({
-                "step": idx,
+                "executionOrder": idx,
                 "importance": "essential",
-                "message": {"text": f"Turn {idx} Adversarial Prompt: {prompt_text}"},
+                "location": {"message": {"text": f"Turn {idx} Adversarial Prompt: {prompt_text}"}},
             })
 
         results.append({
@@ -68,10 +85,14 @@ def to_sarif(report_data: dict[str, Any]) -> dict[str, Any]:
             "message": {
                 "text": f"Vulnerability confirmed: {f.get('title')}. Evidence: {f.get('evidence')}. Broke in {f.get('turns_to_break')} turn(s).",
             },
+            "locations": [{
+                "physicalLocation": {"artifactLocation": {"uri": target_config}, "region": {"startLine": 1}},
+                "logicalLocations": [{"name": target_id, "kind": "module"}],
+            }],
             "codeFlows": [
                 {
                     "message": {"text": "Multi-turn conversational attack trace"},
-                    "threadFlows": [{"locations": [{"location": s} for s in thread_flow_steps]}],
+                    "threadFlows": [{"locations": thread_flow_steps}],
                 }
             ],
             "properties": {
@@ -90,14 +111,14 @@ def to_sarif(report_data: dict[str, Any]) -> dict[str, Any]:
                         "name": "RedCell",
                         "organization": "RedCell Security",
                         "semanticVersion": "1.0.0",
-                        "informationUri": "https://github.com/larptech-70/red-cell",
+                        "informationUri": REPO_URI,
                         "rules": rules,
                     }
                 },
                 "invocations": [
                     {
                         "executionSuccessful": True,
-                        "endTimeUtc": report_data.get("generated", ""),
+                        "endTimeUtc": _utc(report_data),
                     }
                 ],
                 "results": results,
