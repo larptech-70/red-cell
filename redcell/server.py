@@ -4,6 +4,7 @@
   GET  /events?hardened=0|1  run a session and stream events (Server-Sent Events)
   GET  /api/info             mode, goals, live runs left for this visitor
   GET  /api/last             last LIVE weak + hardened reports (no new spend)
+  POST /api/unlock           {"code": ...} -> sets an HttpOnly cookie that allows live runs (public mode)
   GET  /report.md|.json      report of the last run here (or the last live report)
   POST /target/chat          chat with the demo target (this is what garak scans)
   GET  /target/usage         spend of the /target/chat endpoint
@@ -11,14 +12,19 @@
 Public deployment (REDCELL_PUBLIC=1): each visitor gets REDCELL_RUNS_PER_VISITOR live runs per UTC
 day, all live runs share a REDCELL_DAILY_BUDGET_USD cap, and /target/chat is off unless
 REDCELL_ENABLE_TARGET_CHAT=1, so a public URL cannot drain credits. Bind with REDCELL_HOST / PORT.
+Live runs in public mode also need a judge code: REDCELL_RUN_CODE, set only as a host secret. With no code
+set, public live runs are disabled; visitors always see the saved live run.
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import os
 import pathlib
 import threading
 import time
+from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -45,7 +51,11 @@ RUN_BUDGET_USD = float(os.environ.get("REDCELL_BUDGET_USD", "1.50"))
 MIN_RUN_USD = 0.05  # don't start a live run with less than this left in today's budget
 GOAL_IDS = list(GOALS) if os.environ.get("REDCELL_ALL_GOALS") == "1" else CORE_GOAL_IDS
 
+COOKIE = "redcell_run"
+MAX_UNLOCK_FAILS = 10  # per visitor per process, against guessing
+
 STATE = {"report": None}
+UNLOCK_FAILS: dict[str, int] = {}
 RUN_LOCK = threading.Lock()  # one run at a time
 # Long-lived target for garak. Its own budget (garak sends many prompts) and the per-request
 # reset below keep each probe an independent, cheap, single-turn exchange. No retries: a failed
@@ -101,6 +111,37 @@ class Guard:
 
 
 GUARD = Guard()
+
+
+def _run_code() -> str:
+    return os.environ.get("REDCELL_RUN_CODE", "")
+
+
+def _token(code: str) -> str:
+    """Cookie value: an HMAC of the code, so the code itself never sits in the browser."""
+    return hmac.new(code.encode(), b"redcell-live-run", hashlib.sha256).hexdigest()
+
+
+def code_matches(candidate: str) -> bool:
+    code = _run_code()
+    return bool(code) and hmac.compare_digest(candidate.encode(), code.encode())  # constant time
+
+
+def run_allowed(cookie_header: str | None) -> tuple[bool, str]:
+    """Judge-code gate for live runs in public mode. Local (non-public) runs are not gated."""
+    if not PUBLIC:
+        return True, ""
+    code = _run_code()
+    if not code:
+        return False, "Live runs are turned off on this public demo. The saved live run is shown instead."
+    try:
+        morsel = SimpleCookie(cookie_header or "").get(COOKIE)
+    except CookieError:
+        morsel = None
+    if morsel and hmac.compare_digest(morsel.value.encode(), _token(code).encode()):
+        return True, ""
+    return False, ("Live runs need a judge code (judges: see the Devpost testing instructions). "
+                   "The saved live run is shown instead.")
 
 
 def _load_last_live() -> dict:
@@ -169,10 +210,14 @@ class H(BaseHTTPRequestHandler):
             live = TokenFactory().live
             return self._send(200, json.dumps({
                 "live": live, "public": PUBLIC, "runs_left": GUARD.runs_left(self._visitor()) if live else None,
+                "needs_code": PUBLIC and live, "live_runs_enabled": live and (not PUBLIC or bool(_run_code())),
+                "unlocked": live and run_allowed(self.headers.get("Cookie"))[0],
                 "goals": [{"id": GOALS[g].id, "title": GOALS[g].title, "owasp": GOALS[g].owasp} for g in GOAL_IDS]}), "application/json")
         self._send(404, "not found", "text/plain")
 
     def do_POST(self):
+        if urlparse(self.path).path == "/api/unlock":
+            return self._unlock()
         if urlparse(self.path).path != "/target/chat":
             return self._send(404, "not found", "text/plain")
         if PUBLIC and os.environ.get("REDCELL_ENABLE_TARGET_CHAT") != "1":
@@ -189,6 +234,25 @@ class H(BaseHTTPRequestHandler):
         except Exception as e:  # always answer -- a hang here would stall a whole garak scan
             reply = f"(target unavailable: {type(e).__name__})"
         self._send(200, json.dumps({"reply": reply}), "application/json")
+
+    def _unlock(self):
+        visitor = self._visitor()
+        if UNLOCK_FAILS.get(visitor, 0) >= MAX_UNLOCK_FAILS:
+            return self._send(429, '{"ok":false,"error":"too many attempts"}', "application/json")
+        try:
+            code = str(json.loads(self.rfile.read(min(int(self.headers.get("Content-Length", 0)), 1024)) or b"{}").get("code", ""))
+        except (ValueError, AttributeError):
+            return self._send(400, '{"ok":false,"error":"bad json"}', "application/json")
+        if not code_matches(code):
+            UNLOCK_FAILS[visitor] = UNLOCK_FAILS.get(visitor, 0) + 1
+            return self._send(403, '{"ok":false,"error":"wrong or disabled code"}', "application/json")
+        b = b'{"ok":true}'
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(b)))
+        self.send_header("Set-Cookie", f"{COOKIE}={_token(_run_code())}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=172800")
+        self.end_headers()
+        self.wfile.write(b)
 
     def _events(self, q):
         self.send_response(200)
@@ -209,7 +273,10 @@ class H(BaseHTTPRequestHandler):
             hardened = q.get("hardened", ["0"])[0] == "1"
             budget = RUN_BUDGET_USD
             if TokenFactory().live:
-                ok, reason, budget = GUARD.admit(self._visitor())
+                ok, reason = run_allowed(self.headers.get("Cookie"))  # layer 1: judge code (public mode)
+                if not ok:
+                    return emit({"type": "refused", "text": reason})
+                ok, reason, budget = GUARD.admit(self._visitor())  # layer 2: per-visitor limit + daily cap
                 if not ok:
                     return emit({"type": "refused", "text": reason})
             llm, target, brain, mode = make_session(hardened, budget)

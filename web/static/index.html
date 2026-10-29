@@ -25,6 +25,8 @@ h1 small{display:block;font-size:.85rem;font-weight:400;color:var(--muted);lette
 button{font:inherit;font-weight:500;border:1px solid var(--ink);background:var(--ink);color:var(--paper);padding:9px 18px;border-radius:6px;cursor:pointer}
 button.ghost{background:transparent;color:var(--ink)}
 button:disabled{opacity:.45;cursor:not-allowed}
+input.code{font:inherit;font-size:.9rem;padding:8px 10px;width:9.5rem;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink)}
+.codenote{flex-basis:100%;text-align:right;font-size:.82rem;color:var(--muted)}
 main{display:grid;grid-template-columns:260px minmax(0,1fr) 340px;gap:0;height:calc(100vh - 84px)}
 section{padding:20px 24px;border-right:1px solid var(--line);overflow-y:auto;min-width:0}
 section:last-child{border-right:0}
@@ -73,8 +75,10 @@ td,th{text-align:left;padding:6px 4px;border-bottom:1px solid var(--line);vertic
   <div class="controls">
     <label class="switch"><input type="checkbox" id="hardened"> Test the hardened bot</label>
     <span class="switch" id="mode"></span>
+    <span id="codebox" hidden><input class="code" id="code" type="password" placeholder="Judge code" autocomplete="off" aria-label="Judge code for live runs"> <button class="ghost" id="unlock">Unlock live runs</button></span>
     <button id="run">Run attack</button>
     <button class="ghost" id="dl" disabled>Download report</button>
+    <span class="codenote" id="codenote" hidden></span>
   </div>
 </header>
 <main>
@@ -98,7 +102,17 @@ td,th{text-align:left;padding:6px 4px;border-bottom:1px solid var(--line);vertic
 <script>
 const $=s=>document.querySelector(s);
 const goals={}; let es=null, cur=null, LAST={}, running=false, dlKind='';
-function loadInfo(){fetch('/api/info').then(r=>r.json()).then(i=>{$('#mode').textContent=(i.live?'Live: Nemotron on Token Factory':'Offline demo mode (no API key)')+(i.runs_left!=null?' | live runs left today: '+i.runs_left:'')})}
+function loadInfo(){fetch('/api/info').then(r=>r.json()).then(i=>{
+  $('#mode').textContent=(i.live?'Live: Nemotron on Token Factory':'Offline demo mode (no API key)')+(i.runs_left!=null&&i.unlocked?' | live runs left today: '+i.runs_left:'');
+  const locked=i.needs_code&&!i.unlocked;
+  $('#codebox').hidden=!(locked&&i.live_runs_enabled);
+  $('#codenote').hidden=!locked;
+  $('#codenote').textContent=!i.live_runs_enabled?'Live runs are off on this public demo; the saved live run is shown.':'Live runs need a judge code (judges: see the Devpost testing instructions). Everyone else sees the saved live run.';
+  $('#run').disabled=locked||running;
+})}
+$('#unlock').onclick=()=>{const c=$('#code').value;if(!c)return;
+  fetch('/api/unlock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:c}),credentials:'same-origin'})
+  .then(r=>{$('#code').value='';if(r.ok){loadInfo()}else{$('#codenote').hidden=false;$('#codenote').textContent=r.status===429?'Too many attempts.':'That code did not work.'}})};
 loadInfo();
 fetch('/api/last').then(r=>r.json()).then(l=>{LAST=l;showLast()});
 function showLast(){

@@ -1,7 +1,7 @@
 # Render Blueprint for the public RedCell demo (free web service).
 # The build downloads a fixed git tag (REDCELL_TAG), so later pushes to main never change what judges see.
-# Keys are NOT in this file: NEBIUS_API_KEY / TAVILY_API_KEY use sync:false, so Render asks for them in
-# the dashboard and stores them as secret environment variables.
+# Secrets are NOT in this file: NEBIUS_API_KEY, TAVILY_API_KEY and REDCELL_RUN_CODE use sync:false, so
+# Render asks for them in the dashboard and stores them as secret environment variables.
 services:
   - type: web
     name: redcell-demo
@@ -32,4 +32,7 @@ services:
       - key: NEBIUS_API_KEY
         sync: false
       - key: TAVILY_API_KEY
+        sync: false
+      # Judge code for live runs. Set it in the dashboard only; leave it empty to disable live runs.
+      - key: REDCELL_RUN_CODE
         sync: false

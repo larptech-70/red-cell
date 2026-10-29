@@ -5,8 +5,8 @@ The dashboard is a single stdlib Python process (`python -m redcell.server`) wit
 
 - **Pinned code:** the build downloads the git tag `v1.1-submission`, so later pushes to `main` never change
   what judges see. `autoDeploy` is off as well.
-- **No keys in files:** `NEBIUS_API_KEY` and `TAVILY_API_KEY` are marked `sync: false`. Render asks for them
-  in its dashboard and stores them as secret environment variables.
+- **No secrets in files:** `NEBIUS_API_KEY`, `TAVILY_API_KEY` and the judge code `REDCELL_RUN_CODE` are marked
+  `sync: false`. Render asks for them in its dashboard and stores them as secret environment variables.
 - **Port:** Render sets `PORT`, and the server reads it.
 
 ## Free-tier behaviour (Render docs, checked 2026-10-29)
@@ -23,7 +23,16 @@ Hugging Face Spaces was ruled out: its docs say Docker and Gradio Spaces "requir
 
 ## What protects your credits
 
-| Setting (env var, set in render.yaml) | Value | Effect |
+**Layer 1: judge code.** In public mode, a live run needs the judge code.
+- The code lives only in the Render secret `REDCELL_RUN_CODE`. With no code set, live runs are off.
+- A judge enters it once in the page header. The server compares it in constant time, then sets an `HttpOnly`
+  cookie holding an HMAC of the code, never the code itself. Each visitor gets 10 wrong guesses.
+- Visitors without the code see the saved live run, plus a note that judges get a code from the Devpost
+  testing instructions.
+
+**Layer 2: limits** (env vars set in render.yaml):
+
+| Setting | Value | Effect |
 |---|---|---|
 | `REDCELL_PUBLIC=1` | on | Per-visitor limit on; `/target/chat` (the garak endpoint) disabled |
 | `REDCELL_RUNS_PER_VISITOR` | `2` | Live runs per visitor IP per UTC day; after that the last live results are shown |
@@ -33,9 +42,9 @@ Hugging Face Spaces was ruled out: its docs say Docker and Gradio Spaces "requir
 The page opens with the **last live run** (`web/last-live/`), so judges see real Nemotron results without
 spending anything.
 
-**Limitation on Render free:** the daily spend and visitor counters are saved to local disk. Render wipes that
-disk when the service spins down (after 15 idle minutes) or restarts, so the counters start over each time it
-wakes. The $0.50 cap and the 2-runs limit hold while the service is awake, not strictly per calendar day.
+**Limitation on Render free:** the layer 2 counters are saved to local disk. Render wipes that disk when the
+service spins down (after 15 idle minutes) or restarts, so the counters start over each time it wakes. Layer 1
+doesn't depend on disk, so only people who have the judge code can start a live run at all.
 
 ## Click-by-click (Render)
 
@@ -48,8 +57,13 @@ Prerequisite: the tag `v1.1-submission` exists on GitHub (`git ls-remote --tags 
    and give Render access to that repository, then come back.
 4. **Blueprint Name:** `redcell`. **Branch:** `main`. Render finds `render.yaml` and shows one service,
    `redcell-demo` (Python, **Free**).
-5. Render asks for the two `sync: false` values. Paste your **NEBIUS_API_KEY** and **TAVILY_API_KEY**.
-   They're stored as secrets and never written to the repo.
+5. Render asks for the three `sync: false` values:
+   - **NEBIUS_API_KEY**: your Token Factory key
+   - **TAVILY_API_KEY**: your Tavily key
+   - **REDCELL_RUN_CODE**: the judge code. Make one up, at least 12 characters and not a word (for example from
+     a password generator). Write it only in Render and in the Devpost testing instructions, never in the repo.
+
+   All three are stored as secrets.
 6. Click **Deploy Blueprint** (or **Apply**).
 7. Open the `redcell-demo` service. The build log should show the tarball download. Within a minute or two
    the status turns **Live**.
@@ -58,21 +72,39 @@ Prerequisite: the tag `v1.1-submission` exists on GitHub (`git ls-remote --tags 
 
 If the build fails with a 404, the tag is missing. Push it and click **Manual Deploy → Deploy latest commit**.
 
+## Testing instructions for judges (paste into Devpost, swap in the real code)
+
+> **Live demo:** https://YOUR-RENDER-URL
+>
+> The page opens with our last live run: real NVIDIA Nemotron calls on Nebius Token Factory. Weak bot 4/4
+> broken, hardened bot 0/4. Tick "Test the hardened bot" to switch between them. No login needed.
+>
+> **To start a new live run:** type the judge code **`JUDGE-CODE-HERE`** into the "Judge code" box (top right),
+> click **Unlock live runs**, then click **Run attack**. A run takes 2–4 minutes and streams every attacker
+> message, bot reply, simulated shell command and judge verdict. Each visitor gets 2 live runs per day.
+>
+> The demo is on a free host that sleeps when idle, so the first load can take about a minute.
+>
+> Everything is simulated: the bot's shell never runs real commands, and the secrets are planted fake canaries.
+
 ## Check it
 
 ```bash
-curl -s https://<url>/api/info                    # {"live": true, "public": true, "runs_left": 2, ...}
+curl -s https://<url>/api/info                    # {"live": true, "public": true, "needs_code": true, "live_runs_enabled": true, "unlocked": false, ...}
 curl -s https://<url>/api/last | head -c 300      # last live reports
 curl -s -o /dev/null -w "%{http_code}\n" -X POST https://<url>/target/chat -d '{}'   # 403
 ```
 
-Then open the URL in a browser. The Findings panel should say "Last live run". **Logs** should show
+Then open the URL in a browser. The Findings panel should say "Last live run", **Run attack** is disabled
+until you unlock, and the header shows the judge-code note. **Logs** should show
 `RedCell dashboard: http://0.0.0.0:<port> (live Token Factory, public: 2 runs/visitor/day, $0.50/day cap)`.
 
 The first request after 15 idle minutes takes about a minute, so tell judges that in the testing instructions.
 
 ## Updating and stopping
 
+- **Change the judge code:** service **Environment** tab, edit `REDCELL_RUN_CODE`, then save. Render restarts
+  the service, and old unlock cookies stop working.
 - **Update:** create a new tag, change `REDCELL_TAG` (service **Environment** tab, or `render.yaml`), then
   **Manual Deploy**. The URL stays the same.
 - **Stop:** service **Settings → Suspend Web Service**, or **Delete Web Service**.
