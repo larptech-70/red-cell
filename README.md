@@ -1,6 +1,6 @@
 # RedCell
 
-[![Tests](https://img.shields.io/badge/tests-68%20passing-brightgreen)](#run-it-locally)
+[![Tests](https://img.shields.io/badge/tests-79%20passing-brightgreen)](#run-it-locally)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Models](https://img.shields.io/badge/Models-NVIDIA%20Nemotron%20on%20Nebius%20Token%20Factory-76b900)](#nvidia-nemotron-on-nebius-token-factory)
 
@@ -143,7 +143,7 @@ python scripts/run_demo.py      # same engine in the terminal (weak bot)
 python scripts/run_demo.py --hardened
 python scripts/run_demo.py --compare   # weak vs hardened OWASP table + remediation patch
 python scripts/replay_viewer.py --auto # screencast replayer of adversarial transcripts
-python -m pytest -q tests       # 68 tests; pip install pytest (and jsonschema for full SARIF validation)
+python -m pytest -q tests       # 79 tests; pip install pytest (and jsonschema for full SARIF validation)
 ```
 
 Core RedCell uses only the Python standard library. Runs write Markdown, HTML, JSON and SARIF reports to
@@ -157,6 +157,7 @@ These are in the repo but were **not** part of the live runs above:
   vector weaknesses, misinformation, unbounded consumption) with code checks. They've been exercised only in
   offline mock mode; enable them with `--all-owasp` or `REDCELL_ALL_GOALS=1`.
 - **Target adapters:**
+  - **Callable:** universal adapter for any Python function, async agent, class, or generator ([examples/test_custom_agent.py](examples/test_custom_agent.py)).
   - **HTTP:** tested against a local stub, with host-allowlist tests.
   - **LangChain:** written, not tested against a real agent.
   - **MCP:** written, not verified against a real MCP server. Its request flow needs rework.
