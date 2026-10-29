@@ -41,6 +41,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 STATIC = ROOT / "web" / "static"
 LAST_LIVE_DIR = ROOT / "web" / "last-live"   # committed snapshot of the last live runs, served to judges
 REPORTS = ROOT / "reports"
+PATCHES = REPORTS / "patches"                # generated hardening patch + hardened source
 PLANNER = os.environ.get("REDCELL_PLANNER_MODEL", "nvidia/Nemotron-3-Ultra-550b-a55b")
 TARGET_M = os.environ.get("REDCELL_TARGET_MODEL", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B")
 JUDGE_M = os.environ.get("REDCELL_JUDGE_MODEL", "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B")
@@ -290,7 +291,7 @@ class H(BaseHTTPRequestHandler):
                 if isinstance(brain, LiveBrain):
                     brain.intel = intel
                 results = run_session(target, brain, GOAL_IDS, emit=emit)
-                rep = rpt.build(results, llm.ledger.snapshot(), target_name="OrbitOps (demo DevOps bot)", hardened=hardened, mode=mode, intel=intel, garak=garak_baseline.load())
+                rep = rpt.build(results, llm.ledger.snapshot(), target_name="OrbitOps (demo DevOps bot)", hardened=hardened, mode=mode, intel=intel, garak=garak_baseline.load(), patches_dir=str(PATCHES))
                 run_span.end(outputs={"goals_broken": rep["goals_broken"], "goals_tried": rep["goals_tried"]},
                              metadata={"cost_usd": rep["usage"]["cost_usd"], "model_calls": rep["usage"]["calls"]})
             STATE["report"] = rep
