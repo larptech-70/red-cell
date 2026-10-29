@@ -63,7 +63,10 @@ Prerequisite: the tag `v1.4-submission` exists on GitHub (`git ls-remote --tags 
    - **REDCELL_RUN_CODE**: the judge code. Make one up, at least 12 characters and not a word (for example from
      a password generator). Write it only in Render and in the Devpost testing instructions, never in the repo.
 
-   All three are stored as secrets.
+   - **LANGSMITH_API_KEY** (optional): a write-only LangSmith tracing key. With it, public runs are traced to
+     the `redcell` project (run data only: no visitor IP, cookie or run code). Leave it empty to keep tracing off.
+
+   All of these are stored as secrets.
 6. Click **Deploy Blueprint** (or **Apply**).
 7. Open the `redcell-demo` service. The build log should show the tarball download. Within a minute or two
    the status turns **Live**.

@@ -8,11 +8,13 @@ services:
     runtime: python
     plan: free
     autoDeploy: false
-    # Optional PDF export: install pinned ReportLab; if that fails the build still continues (PDF button hidden).
+    # Optional extras, each installed on its own so a failure only switches that feature off (never fails the build):
+    # ReportLab for PDF export, langsmith for tracing.
     # Then wipe build/ (Render's build cache can keep an older tag's folder) and unpack into the fixed folder
     # build/app, so the start command never depends on a glob matching exactly one directory.
     buildCommand: >-
       (pip install reportlab==4.4.10 || echo "reportlab install failed: PDF export disabled")
+      && (pip install langsmith==0.14.14 || echo "langsmith install failed: tracing disabled")
       && rm -rf build && python -c "import io,os,tarfile,urllib.request as u;
       t=os.environ['REDCELL_TAG'];
       tarfile.open(fileobj=io.BytesIO(u.urlopen('https://codeload.github.com/larptech-70/red-cell/tar.gz/refs/tags/'+t).read())).extractall('build',filter='data')"
@@ -34,9 +36,14 @@ services:
         value: "0.50"
       - key: PYTHONUNBUFFERED
         value: "1"
-      # Optional LangSmith tracing stays off on the public demo.
+      # Optional LangSmith tracing of public runs (run data only: no visitor IP, cookie or run code).
+      # Needs the LANGSMITH_API_KEY secret; without it, or without the package, tracing stays off.
       - key: LANGSMITH_TRACING
-        value: "false"
+        value: "true"
+      - key: LANGSMITH_PROJECT
+        value: redcell
+      - key: LANGSMITH_API_KEY
+        sync: false
       - key: NEBIUS_API_KEY
         sync: false
       - key: TAVILY_API_KEY
