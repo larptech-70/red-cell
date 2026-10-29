@@ -45,8 +45,23 @@ def build(results, usage: dict, *, target_name: str, hardened: bool, mode: str,
         "garak": garak,
         "intel": {"ran": (intel or {}).get("ran", False), "sources": (intel or {}).get("sources", 0)},
     }
+    rep["transcript"] = transcript(results)
     rep["comparison"] = comparison_table(rep)
     return rep
+
+
+def transcript(results, max_chars: int = 2000) -> list[dict]:
+    """Every turn of every goal: tester message, bot reply, tool calls with their outcome, and the verdict.
+    Only planted fake canaries can appear here; long replies are trimmed."""
+    out = []
+    for r in results:
+        out.append({
+            "goal": r.goal.id, "title": r.goal.title, "owasp": r.goal.owasp, "landed": r.landed,
+            "turns": [{"n": t.n, "attack": t.attack[:max_chars], "reply": t.reply[:max_chars],
+                       "tool_calls": [{"cmd": c.get("cmd", "")[:500], "risk": c.get("risk", ""), "why": c.get("why", "")} for c in t.tool_calls],
+                       "verdict": t.verdict, "reason": t.reason, "evidence": t.evidence} for t in r.turns],
+        })
+    return out
 
 
 def comparison_table(rep: dict) -> list[list[str]]:

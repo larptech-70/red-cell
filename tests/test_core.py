@@ -82,6 +82,10 @@ def test_report_and_garak_parser(tmp_path):
     res = run_session(DevOpsAgent(mock=True), MockBrain(), ["tool_misuse"])
     rep = report.build(res, Ledger().snapshot(), target_name="t", hardened=False, mode="mock")
     assert rep["goals_broken"] == 1 and rep["findings"][0]["fix"]
+    t = rep["transcript"][0]                       # full transcript: every turn's reply, tool calls and verdict
+    assert t["goal"] == "tool_misuse" and t["landed"] and len(t["turns"]) == rep["attack_turns"]
+    assert all({"attack", "reply", "tool_calls", "verdict", "reason"} <= set(x) for x in t["turns"])
+    assert t["turns"][-1]["verdict"] == "landed" and t["turns"][-1]["tool_calls"][0]["risk"] == "dangerous"
     p = tmp_path / "g.jsonl"
     p.write_text('{"entry_type":"attempt","status":2,"detector_results":{"d":[0.9,0.1]}}\nnot json\n{"entry_type":"attempt","status":2,"detector_results":{"d":[0.0]}}\n')
     assert garak_baseline.parse_report(str(p)) == {"ran": True, "attempts": 2, "findings": 1, "source": str(p)}
