@@ -13,6 +13,8 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 
+from . import tracing
+
 
 def load_env(path: str = os.path.join(os.path.dirname(__file__), "..", "..", ".env")) -> None:
     """Load KEY=VALUE lines from the repo's .env. Variables already set in the shell win."""
@@ -126,17 +128,28 @@ class TokenFactory:
         raise last  # type: ignore[misc]
 
     def chat(self, model: str, messages: list[dict], *, tools: list | None = None, temperature: float = 0.7, max_tokens: int = 700,
-             extra: dict | None = None) -> dict:
-        """Returns the first choice's message dict ({'content', 'tool_calls'?}). `extra` is merged into the request body."""
+             extra: dict | None = None, role: str = "llm") -> dict:
+        """Returns the first choice's message dict ({'content', 'tool_calls'?}). `extra` is merged into the request body.
+        `role` (planner / target / judge) only names the optional tracing span."""
         self.ledger.check()
         body = {"model": model, "messages": messages, "temperature": temperature, "max_tokens": max_tokens, **(extra or {})}
         if tools:
             body["tools"] = tools
-        out = self._post("chat/completions", body)
-        u = out.get("usage") or {}
-        self.ledger.add(model, int(u.get("prompt_tokens", 0)), int(u.get("completion_tokens", 0)))
-        choice = out["choices"][0]
-        return {**choice["message"], "finish_reason": choice.get("finish_reason")}
+        with tracing.span(f"{role}: {model.split('/')[-1]}", "llm", inputs={"messages": tracing.messages_for_trace(messages)},
+                          metadata={"ls_provider": "nebius-token-factory", "ls_model_name": model, "role": role}) as sp:
+            before = self.ledger.cost_usd
+            out = self._post("chat/completions", body)
+            u = out.get("usage") or {}
+            pt, ct = int(u.get("prompt_tokens", 0)), int(u.get("completion_tokens", 0))
+            self.ledger.add(model, pt, ct)
+            choice = out["choices"][0]
+            msg = choice["message"]
+            sp.end(outputs={"content": str(msg.get("content") or "")[:tracing.MAX_CHARS],
+                            "tool_calls": [c.get("function", {}).get("arguments", "")[:500] for c in (msg.get("tool_calls") or [])],
+                            "usage_metadata": {"input_tokens": pt, "output_tokens": ct, "total_tokens": pt + ct}},
+                   metadata={"cost_usd": round(self.ledger.cost_usd - before, 6), "latency_ms": self.last_latency_ms,
+                             "finish_reason": choice.get("finish_reason")})
+        return {**msg, "finish_reason": choice.get("finish_reason")}
 
     def models(self) -> list[str]:
         req = urllib.request.Request(self.base_url + "models", headers={"Authorization": f"Bearer {self.api_key}"})

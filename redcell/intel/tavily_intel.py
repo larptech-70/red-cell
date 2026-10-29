@@ -20,6 +20,8 @@ import time
 import urllib.error
 import urllib.request
 
+from ..core import tracing
+
 ENDPOINT = "https://api.tavily.com/search"
 CACHE_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "reports", "intel.json")
 
@@ -73,9 +75,18 @@ def search(query: str, *, api_key: str | None = None, endpoint: str | None = Non
     return out
 
 
-def gather(goals, *, api_key: str | None = None, endpoint: str | None = None,
-           cache_path: str | None = None, max_results: int = 3, force: bool = False,
-           emit=lambda e: None) -> dict:
+def gather(goals, **kw) -> dict:
+    """Traced wrapper around _gather (one optional LangSmith span; no key or headers recorded)."""
+    with tracing.span("tavily intel", "tool", inputs={"goals": [g.id for g in goals]}) as sp:
+        res = _gather(goals, **kw)
+        sp.end(outputs={"ran": res.get("ran"), "sources": res.get("sources", 0),
+                        "urls": [h.get("url") for hits in (res.get("by_goal") or {}).values() for h in hits][:20]})
+        return res
+
+
+def _gather(goals, *, api_key: str | None = None, endpoint: str | None = None,
+            cache_path: str | None = None, max_results: int = 3, force: bool = False,
+            emit=lambda e: None) -> dict:
     """Collect per-goal defensive threat intel for a run.
 
     Returns {"ran": bool, "sources": int, "by_goal": {goal_id: [hit,...]}, "reason": str}.

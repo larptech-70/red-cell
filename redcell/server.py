@@ -29,6 +29,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from .attacks.goals import CORE_GOAL_IDS, GOALS
+from .core import tracing
 from .core.llm import Ledger, TokenFactory
 from .core.session import LiveBrain, MockBrain, run_session
 from .intel import tavily_intel
@@ -282,11 +283,16 @@ class H(BaseHTTPRequestHandler):
             llm, target, brain, mode = make_session(hardened, budget)
             goals = [GOALS[g] for g in GOAL_IDS]
             emit({"type": "start", "mode": mode, "hardened": hardened, "goals": [{"id": g.id, "title": g.title, "owasp": g.owasp} for g in goals]})
-            intel = tavily_intel.gather(goals, emit=emit)
-            if isinstance(brain, LiveBrain):
-                brain.intel = intel
-            results = run_session(target, brain, GOAL_IDS, emit=emit)
-            rep = rpt.build(results, llm.ledger.snapshot(), target_name="OrbitOps (demo DevOps bot)", hardened=hardened, mode=mode, intel=intel, garak=garak_baseline.load())
+            # Optional LangSmith root span (no-op unless tracing is on; never records the visitor, cookie or run code).
+            with tracing.span("RedCell run", "chain", inputs={"target": "OrbitOps (demo DevOps bot)", "hardened": hardened,
+                                                              "brain": mode, "goals": GOAL_IDS}) as run_span:
+                intel = tavily_intel.gather(goals, emit=emit)
+                if isinstance(brain, LiveBrain):
+                    brain.intel = intel
+                results = run_session(target, brain, GOAL_IDS, emit=emit)
+                rep = rpt.build(results, llm.ledger.snapshot(), target_name="OrbitOps (demo DevOps bot)", hardened=hardened, mode=mode, intel=intel, garak=garak_baseline.load())
+                run_span.end(outputs={"goals_broken": rep["goals_broken"], "goals_tried": rep["goals_tried"]},
+                             metadata={"cost_usd": rep["usage"]["cost_usd"], "model_calls": rep["usage"]["calls"]})
             STATE["report"] = rep
             if mode == "nemotron-live":
                 LAST_LIVE["hardened" if hardened else "weak"] = rep

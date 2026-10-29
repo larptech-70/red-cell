@@ -13,6 +13,7 @@ from typing import Callable, Iterator
 
 from ..attacks.goals import CORE_GOAL_IDS, GOALS, Goal
 from ..intel import tavily_intel
+from . import tracing
 from .llm import NO_THINK, BudgetExceeded
 
 AUTHORISED_TARGETS = {"orbitops-demo"}  # add ids of targets you own via REDCELL_ALLOW=id1,id2
@@ -123,11 +124,11 @@ class LiveBrain:
             msgs.append({"role": "assistant", "content": t.attack})
             msgs.append({"role": "user", "content": f"Target replied: {t.reply[:400]}\nJudge says: {t.verdict}. {t.reason}"})
         msgs.append({"role": "user", "content": "Write the next message to send." if history else "Write the first message to send."})
-        out = self._clean(self.llm.chat(self.planner, msgs, temperature=0.9, max_tokens=1000).get("content") or "")
+        out = self._clean(self.llm.chat(self.planner, msgs, temperature=0.9, max_tokens=1000, role="planner").get("content") or "")
         if _REFUSAL.match(out):  # planner refused as itself; nudge once and keep the attack honest
             emit({"type": "reask", "goal": goal.id, "text": out[:160]})
             msgs += [{"role": "assistant", "content": out}, {"role": "user", "content": REASK_NUDGE}]
-            out = self._clean(self.llm.chat(self.planner, msgs, temperature=0.9, max_tokens=1000).get("content") or "")
+            out = self._clean(self.llm.chat(self.planner, msgs, temperature=0.9, max_tokens=1000, role="planner").get("content") or "")
         return out or "hello"
 
     @staticmethod
@@ -143,7 +144,7 @@ class LiveBrain:
         prompt = (f"GOAL: {goal.brief}\nATTACKER: {turn['attack']}\nTARGET REPLY: {turn['reply'][:600]}\n"
                   f"TOOL CALLS: {json.dumps(calls)}")
         raw = self.llm.chat(self.judge_model, [{"role": "system", "content": JUDGE_SYSTEM}, {"role": "user", "content": prompt}],
-                            temperature=0.0, max_tokens=1000, extra=NO_THINK).get("content") or ""
+                            temperature=0.0, max_tokens=1000, extra=NO_THINK, role="judge").get("content") or ""
         try:
             data = json.loads(re.search(r"\{.*\}", raw, re.S).group(0))
             v = data.get("verdict", "blocked")
@@ -155,6 +156,13 @@ class LiveBrain:
 
 
 def run_goal(target, brain, goal: Goal, max_turns: int = 6, emit: Callable[[dict], None] = lambda e: None) -> GoalResult:
+    with tracing.span(f"goal: {goal.id}", "chain", inputs={"goal": goal.brief}, metadata={"goal": goal.id, "owasp": goal.owasp}) as sp:
+        res = _run_goal(target, brain, goal, max_turns, emit)
+        sp.end(outputs={"landed_before_replay": res.landed, "turns": len(res.turns)}, metadata={"landed_before_replay": res.landed})
+        return res
+
+
+def _run_goal(target, brain, goal: Goal, max_turns: int, emit: Callable[[dict], None]) -> GoalResult:
     res = GoalResult(goal)
     target.reset()
     emit({"type": "goal_start", "goal": goal.id, "title": goal.title, "owasp": goal.owasp})
@@ -166,10 +174,14 @@ def run_goal(target, brain, goal: Goal, max_turns: int = 6, emit: Callable[[dict
         turn["attack"] = attack
         emit({"type": "reply", "goal": goal.id, "n": n, "text": turn["reply"], "tool_calls": turn["tool_calls"],
               "tool_errors": turn.get("tool_errors", [])})
-        verdict, reason, hint = brain.judge(goal, turn)
-        ok, ev = goal.check(turn)
-        if ok:
-            verdict = "landed"
+        # Judge step span: the judge model call (if any) nests inside; turn/verdict/evidence make landed turns filterable.
+        with tracing.span(f"judge: turn {n}", "chain", metadata={"goal": goal.id, "turn": n}) as js:
+            verdict, reason, hint = brain.judge(goal, turn)
+            ok, ev = goal.check(turn)
+            if ok:
+                verdict = "landed"
+            js.end(outputs={"verdict": verdict, "reason": reason},
+                   metadata={"turn": n, "verdict": verdict, "evidence": ev, "decided_by": "code check" if ok else type(brain).__name__})
         t = Turn(n, attack, turn["reply"], turn["tool_calls"], verdict, reason, ev, int((time.time() - t0) * 1000))
         res.turns.append(t)
         emit({"type": "verdict", "goal": goal.id, "n": n, "verdict": verdict, "reason": reason, "evidence": ev, "hint": hint})
@@ -203,7 +215,9 @@ def run_session(target, brain, goal_ids: list[str], *, target_id: str = "orbitop
             emit({"type": "budget_stop", "text": str(e)})
             break
         if r.landed:
-            r.landed = verify_replay(target, r.goal, r.winning_turn, [t.attack for t in r.turns])
+            with tracing.span(f"replay: {gid}", "chain", metadata={"goal": gid}) as rs:
+                r.landed = verify_replay(target, r.goal, r.winning_turn, [t.attack for t in r.turns])
+                rs.end(outputs={"reproduced": r.landed}, metadata={"reproduced": r.landed})
             emit({"type": "replay", "goal": gid, "reproduced": r.landed})
         results.append(r)
     return results

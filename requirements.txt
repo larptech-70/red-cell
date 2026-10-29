@@ -3,3 +3,5 @@
 # garak
 # Optional, for tests (full SARIF 2.1.0 schema validation; falls back to structural checks without it):
 # pytest jsonschema
+# Optional, for LangSmith tracing (off unless LANGSMITH_API_KEY is set and LANGSMITH_TRACING=true):
+# langsmith

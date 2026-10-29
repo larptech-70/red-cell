@@ -29,6 +29,9 @@ services:
         value: "0.50"
       - key: PYTHONUNBUFFERED
         value: "1"
+      # Optional LangSmith tracing stays off on the public demo.
+      - key: LANGSMITH_TRACING
+        value: "false"
       - key: NEBIUS_API_KEY
         sync: false
       - key: TAVILY_API_KEY

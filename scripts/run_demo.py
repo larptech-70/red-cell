@@ -2,6 +2,7 @@
 import argparse, os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from redcell.attacks.goals import CORE_GOAL_IDS, GOALS
+from redcell.core import tracing
 from redcell.core.llm import Ledger, TokenFactory
 from redcell.core.session import LiveBrain, MockBrain, run_session
 from redcell.intel import tavily_intel
@@ -35,15 +36,25 @@ def show(e):
     elif t == "replay": print(f"  replay on fresh target: {'reproduced' if e['reproduced'] else 'NOT reproduced (finding dropped)'}")
 
 target_goals = [GOALS[gid] for gid in active_goal_ids]
-intel = tavily_intel.gather(target_goals, emit=show)
-if isinstance(brain, LiveBrain):
-    brain.intel = intel
+# Optional LangSmith trace: one root span per run (a no-op unless tracing is turned on).
+with tracing.span("RedCell run", "chain", inputs={"target": "OrbitOps (demo DevOps bot)", "hardened": a.hardened, "brain": mode,
+                                                  "goals": active_goal_ids, "max_turns": a.turns}) as run_span:
+    intel = tavily_intel.gather(target_goals, emit=show)
+    if isinstance(brain, LiveBrain):
+        brain.intel = intel
 
-try:
-    res = run_session(DevOpsAgent(llm=llm, model=TARGET_M, hardened=a.hardened, mock=not llm.live), brain, active_goal_ids, max_turns=a.turns, emit=show)
-except BaseException:
-    print(f"\nrun aborted | ${llm.ledger.cost_usd:.4f} spent over {llm.ledger.calls} calls")
-    raise
-rep = report.build(res, llm.ledger.snapshot(), target_name="OrbitOps (demo DevOps bot)", hardened=a.hardened, mode=mode, intel=intel, garak=garak_baseline.load())
+    try:
+        res = run_session(DevOpsAgent(llm=llm, model=TARGET_M, hardened=a.hardened, mock=not llm.live), brain, active_goal_ids, max_turns=a.turns, emit=show)
+    except BaseException:
+        print(f"\nrun aborted | ${llm.ledger.cost_usd:.4f} spent over {llm.ledger.calls} calls")
+        raise
+    rep = report.build(res, llm.ledger.snapshot(), target_name="OrbitOps (demo DevOps bot)", hardened=a.hardened, mode=mode, intel=intel, garak=garak_baseline.load())
+    run_span.end(outputs={"goals_broken": rep["goals_broken"], "goals_tried": rep["goals_tried"]},
+                 metadata={"cost_usd": rep["usage"]["cost_usd"], "model_calls": rep["usage"]["calls"]})
 paths = report.save(rep, os.path.join(os.path.dirname(__file__), "..", "reports"))
 print(f"\n{rep['goals_broken']}/{rep['goals_tried']} goals broken | ${rep['usage']['cost_usd']:.4f} spent | report: {paths['md']} | sarif: {paths['sarif']}")
+tracing.flush()
+if run_span.url():
+    print(f"LangSmith trace: {run_span.url()}")
+elif run_span.trace_id():  # write-only keys can't look up the URL
+    print(f"LangSmith trace id: {run_span.trace_id()} (project {os.environ.get('LANGSMITH_PROJECT', 'default')})")

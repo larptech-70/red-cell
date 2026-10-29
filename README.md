@@ -91,6 +91,12 @@ agent-security guidance). The run above used **12 sources** across the 4 goals. 
 summary of them, and every finding in the report links to its top source. Results are cached in
 `reports/intel.json`, so repeat runs cost no Tavily credits. Without `TAVILY_API_KEY` this step is skipped.
 
+## Other tools
+
+- **LangSmith tracing (optional, off by default):** with `pip install langsmith`, `LANGSMITH_API_KEY` and
+  `LANGSMITH_TRACING=true`, each run is traced (run, then goal, then each LLM call with tokens, cost and latency,
+  plus the Tavily lookup). Without them, nothing changes.
+
 ## Compared with garak
 
 We ran NVIDIA's **garak** scanner on the same weak bot, through its `/target/chat` endpoint: 11 probes
