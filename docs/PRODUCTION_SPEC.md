@@ -1,6 +1,10 @@
 # RedCell: Production Architecture & System Specification
 **An Adaptive, Multi-Turn Red-Teaming Engine for Autonomous AI Agents**
 
+> **Status: design proposal / roadmap, not implemented.** This document describes where RedCell could go. What
+> actually exists and was run live is described in the [README](../README.md). In particular, the hackathon build
+> uses a simulated shell only. Real command execution and microVM sandboxes are deliberately out of scope.
+
 ---
 
 ## 1. Executive Summary & Core Mission
@@ -9,7 +13,7 @@ As language models transition from isolated chatbots to **autonomous agents** eq
 
 **This creates a catastrophic security blindspot:** an agent can politely answer *"I cannot assist with that request"* while simultaneously executing `rm -rf /var/log/*` or reading sensitive files through its underlying tool invocation loop.
 
-**RedCell** solves this fundamental challenge by acting as an **autonomous, adaptive cognitive adversary** designed to test, verify, and remediate agentic applications before they reach production. Powered by **NVIDIA Nemotron** models running on **Nebius Token Factory** and enriched by **Tavily Threat Intelligence**, RedCell engages target agents in stateful multi-turn interactions, observes their tool execution telemetry in real-time, validates breaches against tamper-proof ground truth, deterministically replays winning exploit chains on fresh instances, and ships actionable code patches for every finding.
+**RedCell** solves this fundamental challenge by acting as an **autonomous, adaptive cognitive adversary** designed to test, verify, and remediate agentic applications before they reach production. Powered by **NVIDIA Nemotron** models running on **Nebius Token Factory** and enriched by **Tavily Threat Intelligence**, RedCell engages target agents in stateful multi-turn interactions, observes their tool execution telemetry in real-time, validates breaches against tamper-proof ground truth, deterministically replays winning exploit chains on fresh instances, and ships remediation guidance for every finding.
 
 ---
 

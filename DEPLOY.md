@@ -72,20 +72,10 @@ Prerequisite: the tag `v1.2-submission` exists on GitHub (`git ls-remote --tags 
 
 If the build fails with a 404, the tag is missing. Push it and click **Manual Deploy → Deploy latest commit**.
 
-## Testing instructions for judges (paste into Devpost, swap in the real code)
+## Testing instructions for judges
 
-> **Live demo:** https://YOUR-RENDER-URL
->
-> The page opens with our last live run: real NVIDIA Nemotron calls on Nebius Token Factory. Weak bot 4/4
-> broken, hardened bot 0/4. Tick "Test the hardened bot" to switch between them. No login needed.
->
-> **To start a new live run:** type the judge code **`JUDGE-CODE-HERE`** into the "Judge code" box (top right),
-> click **Unlock live runs**, then click **Run attack**. A run takes 2–4 minutes and streams every attacker
-> message, bot reply, simulated shell command and judge verdict. Each visitor gets 2 live runs per day.
->
-> The demo is on a free host that sleeps when idle, so the first load can take about a minute.
->
-> Everything is simulated: the bot's shell never runs real commands, and the secrets are planted fake canaries.
+The final text is in [docs/DEVPOST.md](docs/DEVPOST.md) under "Testing instructions". Replace `RENDER-URL-HERE` and
+`JUDGE-CODE-HERE` there, and paste it into Devpost. Keep the real judge code out of the repo.
 
 ## Check it
 

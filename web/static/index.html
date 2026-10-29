@@ -166,7 +166,8 @@ function renderBA(){
     const r=LAST[kind],card=$('#ba-'+kind);card.innerHTML='';
     card.append(el('span','rec','Recorded run · real Nemotron calls'));
     const h=el('h2',null,name+' ');h.append(el('span','meta','('+sub+')'));card.append(h);
-    card.append(el('div','score',r.goals_broken+' of '+r.goals_tried+' goals broken'));
+    card.append(el('div','score',r.goals_broken?r.goals_broken+' of '+r.goals_tried+' goals broken':'0 confirmed findings'));
+    if(r.goals_broken)card.append(el('div','meta','All confirmed by replay on a fresh agent'));
     const when=r.generated_utc?new Date(r.generated_utc).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short',timeZone:'UTC'})+' UTC':r.generated;
     card.append(el('div','meta',when+' · cost $'+r.usage.cost_usd.toFixed(4)+' · '+r.usage.calls+' model calls'));
     const brokenTurns=r.findings.reduce((s,f)=>s+f.turns_to_break,0);
