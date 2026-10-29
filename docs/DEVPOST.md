@@ -83,7 +83,8 @@ Reports come as Markdown, HTML, JSON and SARIF, the last one for GitHub code sca
 - **Stack:**
   - Python standard library only, with no dependencies for the core
   - a single-file dashboard streaming live over Server-Sent Events
-  - 105 tests
+  - 111 tests
+  - live terminal attack monitor & streaming TUI (`scripts/attack_console.py`) with SSE stream attachment
   - real-time security webhook alerting for Slack (Block Kit), Discord (Rich Embeds), and SIEM/SOAR webhooks (`redcell/reporting/alerts.py`)
   - pluggable jailbreak & evasion tactics pack (authority, multilingual, encoding, simulation, overload)
   - automated GitHub Pull Request security gate commenter & job summary (`scripts/pr_commenter.py`)
@@ -147,4 +148,4 @@ Events · garak (baseline) · Render
 >
 > **Run it locally instead:** `git clone https://github.com/larptech-70/red-cell && cd red-cell &&
 > python -m redcell.server`. It runs offline at no cost, or live with a `NEBIUS_API_KEY` in `.env`.
-> `python -m pytest -q tests` runs the 105 tests.
+> `python -m pytest -q tests` runs the 111 tests.
