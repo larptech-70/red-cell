@@ -104,6 +104,16 @@ td:first-child{font-weight:500;color:var(--muted);white-space:nowrap}
 .msg,.sh,.verdict,.finding{max-width:100%;overflow-wrap:anywhere}
 @media(max-width:980px){main{grid-template-columns:minmax(0,1fr);height:auto}section{border-right:0;border-bottom:1px solid var(--line);overflow:visible}}
 @media(prefers-reduced-motion:reduce){.sh.dangerous{animation:none}}
+
+.dropdown{position:relative;display:inline-block}
+.dropdown-menu{position:absolute;top:calc(100% + 6px);right:0;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 12px 30px rgba(0,0,0,.22);min-width:280px;z-index:100;overflow:hidden;padding:6px 0;display:flex;flex-direction:column}
+.dropdown-menu[hidden]{display:none}
+.dd-item{display:flex;gap:12px;align-items:flex-start;padding:10px 14px;color:var(--ink);text-decoration:none;transition:background .15s}
+.dd-item:hover,.dd-item:focus{background:var(--paper);text-decoration:none}
+.dd-icon{font-size:1.15rem;flex:none;line-height:1.2}
+.dd-text{display:flex;flex-direction:column;gap:1px}
+.dd-text b{font-size:.88rem;color:var(--ink);font-weight:600}
+.dd-text small{font-size:.76rem;color:var(--muted);line-height:1.25}
 </style>
 </head>
 <body>
@@ -114,7 +124,17 @@ td:first-child{font-weight:500;color:var(--muted);white-space:nowrap}
     <span class="switch" id="mode"></span>
     <span id="codebox" hidden><input class="code" id="code" type="password" placeholder="Judge code" autocomplete="off" aria-label="Judge code for live runs"> <button class="ghost" id="unlock">Unlock live runs</button></span>
     <button id="run">Run attack</button>
-    <button class="ghost" id="dl" disabled>Download report</button>
+    <div class="dropdown" id="dl-wrap">
+      <button class="ghost" id="dl" disabled aria-haspopup="true" aria-expanded="false">Export Report ▾</button>
+      <div class="dropdown-menu" id="dl-menu" hidden>
+        <a class="dd-item" id="dl-guardrails" href="#"><span class="dd-icon">🛡️</span><span class="dd-text"><b>NVIDIA NeMo Guardrails (.zip)</b><small>Colang rules, config.yml & actions.py</small></span></a>
+        <a class="dd-item" id="dl-pdf" href="#"><span class="dd-icon">📄</span><span class="dd-text"><b>Executive PDF (.pdf)</b><small>ReportLab styling with diff highlights</small></span></a>
+        <a class="dd-item" id="dl-sarif" href="#"><span class="dd-icon">🔍</span><span class="dd-text"><b>DevSecOps SARIF (.sarif)</b><small>GitHub Code Scanning schema v2.1.0</small></span></a>
+        <a class="dd-item" id="dl-html" href="#"><span class="dd-icon">🌐</span><span class="dd-text"><b>Interactive HTML (.html)</b><small>Print-ready standalone audit report</small></span></a>
+        <a class="dd-item" id="dl-md" href="#"><span class="dd-icon">📝</span><span class="dd-text"><b>Markdown Report (.md)</b><small>Full text audit transcript</small></span></a>
+        <a class="dd-item" id="dl-json" href="#"><span class="dd-icon">⚙️</span><span class="dd-text"><b>Machine JSON (.json)</b><small>Raw structured findings & telemetry</small></span></a>
+      </div>
+    </div>
     <span class="codenote" id="codenote" hidden></span>
   </div>
 </header>
@@ -280,7 +300,32 @@ function renderPatch(p){
     else s.className='ctx';
     s.textContent=line+'\n';pre.append(s)});
 }
-$('#dl').onclick=()=>{location.href='/report.md'+(dlKind?'?kind='+dlKind:'')};
+const dlMenu = $('#dl-menu');
+const dlBtn = $('#dl');
+dlBtn.onclick = (e) => {
+  e.stopPropagation();
+  if (dlBtn.disabled) return;
+  const isHidden = dlMenu.hidden;
+  dlMenu.hidden = !isHidden;
+  dlBtn.setAttribute('aria-expanded', isHidden ? 'true' : 'false');
+};
+document.addEventListener('click', (e) => {
+  if (!dlMenu.hidden && !$('#dl-wrap').contains(e.target)) {
+    dlMenu.hidden = true;
+    dlBtn.setAttribute('aria-expanded', 'false');
+  }
+});
+
+function getDlUrl(path) {
+  return path + (dlKind ? '?kind=' + dlKind : '');
+}
+
+$('#dl-guardrails').onclick = (e) => { e.preventDefault(); dlMenu.hidden = true; location.href = getDlUrl('/guardrails.zip'); };
+$('#dl-pdf').onclick = (e) => { e.preventDefault(); dlMenu.hidden = true; location.href = getDlUrl('/report.pdf'); };
+$('#dl-sarif').onclick = (e) => { e.preventDefault(); dlMenu.hidden = true; location.href = getDlUrl('/report.sarif'); };
+$('#dl-html').onclick = (e) => { e.preventDefault(); dlMenu.hidden = true; location.href = getDlUrl('/report.html'); };
+$('#dl-md').onclick = (e) => { e.preventDefault(); dlMenu.hidden = true; location.href = getDlUrl('/report.md'); };
+$('#dl-json').onclick = (e) => { e.preventDefault(); dlMenu.hidden = true; location.href = getDlUrl('/report.json'); };
 </script>
 </body>
 </html>

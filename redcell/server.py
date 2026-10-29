@@ -199,7 +199,7 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, (STATIC / "index.html").read_bytes())
         if u.path == "/events":
             return self._events(q)
-        if u.path in ("/report.md", "/report.json", "/report.html", "/report.pdf", "/report.guardrails.zip", "/guardrails.zip"):
+        if u.path in ("/report.md", "/report.json", "/report.html", "/report.pdf", "/report.sarif", "/report.guardrails.zip", "/guardrails.zip"):
             kind = q.get("kind", [""])[0]
             r = LAST_LIVE.get(kind) if kind else (STATE["report"] or LAST_LIVE.get("weak"))
             if r:
@@ -207,6 +207,9 @@ class H(BaseHTTPRequestHandler):
                     return self._send_pdf(r, kind)
                 if u.path in ("/report.guardrails.zip", "/guardrails.zip"):
                     return self._send_guardrails_zip(r, kind)
+                if u.path == "/report.sarif":
+                    from .reporting.sarif import to_sarif
+                    return self._send(200, json.dumps(to_sarif(r), indent=2), "application/sarif+json; charset=utf-8")
                 if u.path == "/report.html":
                     return self._send(200, rpt.to_html(r), "text/html; charset=utf-8")
                 return self._send(200, rpt.to_markdown(r) if u.path.endswith("md") else json.dumps(r, indent=2),

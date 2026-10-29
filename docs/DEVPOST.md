@@ -83,7 +83,7 @@ Reports come as Markdown, HTML, JSON and SARIF, the last one for GitHub code sca
 - **Stack:**
   - Python standard library only, with no dependencies for the core
   - a single-file dashboard streaming live over Server-Sent Events
-  - 85 tests
+  - 86 tests
   - turnkey NVIDIA NeMo Guardrails bundle export (Colang 1.0/2.0 rules, config.yml, and actions.py)
   - optional cloud tracing via LangSmith
   - free hosting on Render, with a judge-code gate and spend caps so a public URL can't drain credits
@@ -144,4 +144,4 @@ Events · garak (baseline) · Render
 >
 > **Run it locally instead:** `git clone https://github.com/larptech-70/red-cell && cd red-cell &&
 > python -m redcell.server`. It runs offline at no cost, or live with a `NEBIUS_API_KEY` in `.env`.
-> `python -m pytest -q tests` runs the 85 tests.
+> `python -m pytest -q tests` runs the 86 tests.

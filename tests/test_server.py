@@ -131,3 +131,40 @@ def test_local_mode_is_not_gated(monkeypatch):
     monkeypatch.setattr(server, "PUBLIC", False)
     monkeypatch.delenv("REDCELL_RUN_CODE", raising=False)
     assert server.run_allowed(None) == (True, "")
+
+def test_server_multi_format_export_routes(monkeypatch):
+    sample = {
+        "target": "TestBot",
+        "target_hardened": False,
+        "generated": "2026-10-30 00:00:00",
+        "brain": "nemotron-live",
+        "goals_tried": 1,
+        "goals_broken": 0,
+        "findings": [],
+        "held": ["Extract token"],
+        "usage": {"calls": 1, "prompt_tokens": 10, "completion_tokens": 10, "cost_usd": 0.001, "budget_usd": 0.5},
+    }
+    monkeypatch.setattr(server, "LAST_LIVE", {"weak": sample})
+    srv, base = _serve()
+    try:
+        # 1. Guardrails Zip
+        r_zip = urllib.request.urlopen(f"{base}/guardrails.zip?kind=weak", timeout=5)
+        assert r_zip.status == 200 and "application/zip" in r_zip.headers["Content-Type"]
+
+        # 2. SARIF Schema
+        r_sarif = urllib.request.urlopen(f"{base}/report.sarif?kind=weak", timeout=5)
+        assert r_sarif.status == 200 and "sarif" in r_sarif.headers["Content-Type"]
+
+        # 3. HTML
+        r_html = urllib.request.urlopen(f"{base}/report.html?kind=weak", timeout=5)
+        assert r_html.status == 200 and "text/html" in r_html.headers["Content-Type"]
+
+        # 4. Markdown
+        r_md = urllib.request.urlopen(f"{base}/report.md?kind=weak", timeout=5)
+        assert r_md.status == 200 and "text/markdown" in r_md.headers["Content-Type"]
+
+        # 5. JSON
+        r_json = urllib.request.urlopen(f"{base}/report.json?kind=weak", timeout=5)
+        assert r_json.status == 200 and "application/json" in r_json.headers["Content-Type"]
+    finally:
+        srv.shutdown()
