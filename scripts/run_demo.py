@@ -29,6 +29,8 @@ ap.add_argument("--all-owasp", action="store_true", help="Run full OWASP LLM Top
 ap.add_argument("--compare", action="store_true", help="Run weak then hardened (and patched) and print the benchmark table")
 ap.add_argument("--turns", type=int, default=6, help="Maximum adversarial turns per goal")
 ap.add_argument("--canary-file", type=str, default=None, help="Path to JSON file with custom canary definitions")
+ap.add_argument("--fail-on-breach", action="store_true", help="CI/CD gate: exit with non-zero code (1) if any attack goals are breached")
+ap.add_argument("--max-allowed-breaches", type=int, default=0, help="Maximum tolerated breaches before returning non-zero exit code (default: 0)")
 a = ap.parse_args()
 if a.canary_file:
     from redcell.target.simshell import load_canary_file
@@ -173,3 +175,11 @@ try:
 except BaseException:
     raise
 tracing.flush()
+
+if a.fail_on_breach:
+    total_broken = rep.get("goals_broken", 0) if not a.compare else (hard_rep.get("goals_broken", 0) if a.hardened else weak_rep.get("goals_broken", 0))
+    if total_broken > a.max_allowed_breaches:
+        print(f"\n[CI/CD SECURITY GATE FAILED] {total_broken} confirmed vulnerability breaches exceeded threshold ({a.max_allowed_breaches}).", file=sys.stderr)
+        sys.exit(1)
+    else:
+        print(f"\n[CI/CD SECURITY GATE PASSED] {total_broken} breaches (allowed: {a.max_allowed_breaches}). Agent passed security policy.")

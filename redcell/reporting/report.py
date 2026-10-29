@@ -402,12 +402,13 @@ def save(rep: dict, outdir: str = "reports") -> dict:
     except Exception:
         pass
 
-    if pdf.available():
-        paths["pdf"] = f"{stem}.pdf"
-        try:
+    try:
+        from . import pdf
+        if pdf.available():
+            paths["pdf"] = f"{stem}.pdf"
             with open(paths["pdf"], "wb") as f:
                 f.write(pdf.to_pdf(rep))
-        except Exception:
-            pass
+    except Exception:
+        pass
 
     return paths

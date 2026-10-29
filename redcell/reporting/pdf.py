@@ -141,3 +141,4 @@ def to_pdf(rep: dict, compress: bool = True) -> bytes:
                             title=f"RedCell report - {generated_label(rep)}", author="RedCell", pageCompression=1 if compress else 0)
     doc.build(story, onFirstPage=footer, onLaterPages=footer)
     return buf.getvalue()
+

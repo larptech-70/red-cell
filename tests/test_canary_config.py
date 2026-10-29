@@ -70,3 +70,4 @@ def test_load_canary_file():
             "prompt_marker": "ORBIT-OPS-PRIVATE-RULESET-v3",
             "customers": ["maria.lopez@example.com", "j.okafor@example.com"],
         })
+
