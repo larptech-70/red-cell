@@ -1,6 +1,6 @@
 # Devpost submission text
 
-Paste each section into the matching Devpost field. Replace `JUDGE-CODE-HERE` before
+Paste each section into the matching Devpost field. Replace `l6P5srHLQDuR` before
 submitting.
 
 ---
@@ -83,7 +83,8 @@ Reports come as Markdown, HTML, JSON and SARIF, the last one for GitHub code sca
 - **Stack:**
   - Python standard library only, with no dependencies for the core
   - a single-file dashboard streaming live over Server-Sent Events
-  - 36 tests
+  - 60 tests
+  - optional cloud tracing via LangSmith
   - free hosting on Render, with a judge-code gate and spend caps so a public URL can't drain credits
 
 ## Challenges we ran into
@@ -131,7 +132,7 @@ Events · garak (baseline) · Render
 > of 4 goals broken, all confirmed by replay. Hardened bot: 0 confirmed findings; one system-prompt leak
 > appeared once, didn't reproduce on replay, and was dropped. No login is needed to see them.
 >
-> **To start a new live run:** type the judge code **`JUDGE-CODE-HERE`** into the "Judge code" box (top right),
+> **To start a new live run:** type the judge code **`l6P5srHLQDuR`** into the "Judge code" box (top right),
 > click **Unlock live runs**, choose the weak or hardened bot, then click **Run attack**. A run takes a few
 > minutes and streams every test message, bot reply, simulated shell command and verdict. Each visitor gets 2
 > live runs per day. Live results vary between runs.
@@ -142,4 +143,4 @@ Events · garak (baseline) · Render
 >
 > **Run it locally instead:** `git clone https://github.com/larptech-70/red-cell && cd red-cell &&
 > python -m redcell.server`. It runs offline at no cost, or live with a `NEBIUS_API_KEY` in `.env`.
-> `python -m pytest -q tests` runs the 36 tests.
+> `python -m pytest -q tests` runs the 60 tests.

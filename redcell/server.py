@@ -34,6 +34,7 @@ from .core.llm import Ledger, TokenFactory
 from .core.session import LiveBrain, MockBrain, run_session
 from .intel import tavily_intel
 from .reporting import garak_baseline
+from .reporting import pdf as pdf_report
 from .reporting import report as rpt
 from .target.devops_agent import DevOpsAgent
 
@@ -198,10 +199,14 @@ class H(BaseHTTPRequestHandler):
             return self._send(200, (STATIC / "index.html").read_bytes())
         if u.path == "/events":
             return self._events(q)
-        if u.path in ("/report.md", "/report.json"):
+        if u.path in ("/report.md", "/report.json", "/report.html", "/report.pdf"):
             kind = q.get("kind", [""])[0]
             r = LAST_LIVE.get(kind) if kind else (STATE["report"] or LAST_LIVE.get("weak"))
             if r:
+                if u.path == "/report.pdf":
+                    return self._send_pdf(r, kind)
+                if u.path == "/report.html":
+                    return self._send(200, rpt.to_html(r), "text/html; charset=utf-8")
                 return self._send(200, rpt.to_markdown(r) if u.path.endswith("md") else json.dumps(r, indent=2),
                                   "text/markdown; charset=utf-8" if u.path.endswith("md") else "application/json")
         if u.path == "/api/last":
@@ -214,6 +219,7 @@ class H(BaseHTTPRequestHandler):
                 "live": live, "public": PUBLIC, "runs_left": GUARD.runs_left(self._visitor()) if live else None,
                 "needs_code": PUBLIC and live, "live_runs_enabled": live and (not PUBLIC or bool(_run_code())),
                 "unlocked": live and run_allowed(self.headers.get("Cookie"))[0],
+                "pdf": pdf_report.available(),
                 "goals": [{"id": GOALS[g].id, "title": GOALS[g].title, "owasp": GOALS[g].owasp} for g in GOAL_IDS]}), "application/json")
         self._send(404, "not found", "text/plain")
 
@@ -236,6 +242,22 @@ class H(BaseHTTPRequestHandler):
         except Exception as e:  # always answer -- a hang here would stall a whole garak scan
             reply = f"(target unavailable: {type(e).__name__})"
         self._send(200, json.dumps({"reply": reply}), "application/json")
+
+    def _send_pdf(self, r: dict, kind: str):
+        """PDF via the optional ReportLab package. Missing package or any build error gives a clean JSON error, never a crash."""
+        if not pdf_report.available():
+            return self._send(501, '{"error":"PDF export is not installed on this server (pip install reportlab)."}', "application/json")
+        try:
+            body = pdf_report.to_pdf(r)
+        except Exception as e:
+            return self._send(500, json.dumps({"error": f"PDF export failed ({type(e).__name__}); the Markdown report still works."}), "application/json")
+        name = f"redcell-report-{kind or ('hardened' if r.get('target_hardened') else 'weak')}-{(r.get('generated_utc') or 'run')[:10]}.pdf"
+        self.send_response(200)
+        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def _unlock(self):
         visitor = self._visitor()

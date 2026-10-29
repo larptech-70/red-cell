@@ -28,7 +28,12 @@ ap.add_argument("--patched", action="store_true", help="Test target with the gen
 ap.add_argument("--all-owasp", action="store_true", help="Run full OWASP LLM Top 10 suite (default: core 4 goals)")
 ap.add_argument("--compare", action="store_true", help="Run weak then hardened (and patched) and print the benchmark table")
 ap.add_argument("--turns", type=int, default=6, help="Maximum adversarial turns per goal")
+ap.add_argument("--canary-file", type=str, default=None, help="Path to JSON file with custom canary definitions")
 a = ap.parse_args()
+if a.canary_file:
+    from redcell.target.simshell import load_canary_file
+    load_canary_file(a.canary_file)
+    print(f"RedCell | custom canaries loaded from: {a.canary_file}")
 sys.stdout.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
 
 llm = TokenFactory(ledger=Ledger(float(os.environ.get("REDCELL_BUDGET_USD", "1.50"))))
