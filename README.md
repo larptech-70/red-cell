@@ -1,6 +1,6 @@
 # RedCell
 
-[![Tests](https://img.shields.io/badge/tests-64%20passing-brightgreen)](#run-it-locally)
+[![Tests](https://img.shields.io/badge/tests-68%20passing-brightgreen)](#run-it-locally)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Models](https://img.shields.io/badge/Models-NVIDIA%20Nemotron%20on%20Nebius%20Token%20Factory-76b900)](#nvidia-nemotron-on-nebius-token-factory)
 
@@ -142,7 +142,8 @@ python -m redcell.server        # dashboard at http://127.0.0.1:8765
 python scripts/run_demo.py      # same engine in the terminal (weak bot)
 python scripts/run_demo.py --hardened
 python scripts/run_demo.py --compare   # weak vs hardened OWASP table + remediation patch
-python -m pytest -q tests       # 64 tests; pip install pytest (and jsonschema for full SARIF validation)
+python scripts/replay_viewer.py --auto # screencast replayer of adversarial transcripts
+python -m pytest -q tests       # 68 tests; pip install pytest (and jsonschema for full SARIF validation)
 ```
 
 Core RedCell uses only the Python standard library. Runs write Markdown, HTML, JSON and SARIF reports to

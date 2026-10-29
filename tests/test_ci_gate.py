@@ -50,3 +50,4 @@ def test_default_does_not_fail_without_flag():
         text=True,
     )
     assert res.returncode == 0
+
