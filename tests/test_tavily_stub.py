@@ -35,27 +35,41 @@ def _stub():
 def test_gather_parses_and_feeds_planner(tmp_path):
     srv, url = _stub()
     cache = str(tmp_path / "intel.json")
-    intel = tavily_intel.gather(list(GOALS.values()), api_key="k", endpoint=url, cache_path=cache, force=True)
+    intel = tavily_intel.gather(list(GOALS.values()), api_key="k", endpoint=url, cache_path=cache)
     srv.shutdown()
     assert intel["ran"] and intel["sources"] == 2 * len(GOALS)      # two hits per goal
-    assert os.path.exists(cache)                                    # cached for a fast demo re-run
+    assert intel["live"] is True and intel["cached"] is False       # fetched live, not from cache
+    assert os.path.exists(cache)                                    # cache refreshed for the fallback path
     brief = tavily_intel.brief_for(intel, "secret_leak")
     assert "OWASP LLM Top 10" in brief and brief.startswith("Threat intel")
     cite = tavily_intel.citation_for(intel, "secret_leak")
     assert cite["url"] == "https://owasp.org/llm"                   # top-scored source wins
 
 
-def test_cache_is_reused_without_network(tmp_path):
+def test_live_fetch_overrides_stale_cache(tmp_path):
+    # A stale cache must NOT be served when a live fetch succeeds: every run gets fresh intel.
+    cache = str(tmp_path / "intel.json")
+    json.dump({"ran": True, "sources": 99, "by_goal": {}, "live": False}, open(cache, "w"))
+    srv, url = _stub()
+    intel = tavily_intel.gather(list(GOALS.values()), api_key="k", endpoint=url, cache_path=cache)
+    srv.shutdown()
+    assert intel["live"] is True and intel["sources"] == 2 * len(GOALS)   # fresh results, not the 99 cached
+    assert json.load(open(cache, encoding="utf-8"))["sources"] == 2 * len(GOALS)  # cache was refreshed
+
+
+def test_falls_back_to_cache_on_fetch_error(tmp_path):
     cache = str(tmp_path / "intel.json")
     json.dump({"ran": True, "sources": 3, "by_goal": {}}, open(cache, "w"))
-    # No endpoint/key: if it tried the network it would fail; the cache must satisfy it.
+    # Key is set but the endpoint is dead: the live fetch fails, so the cache must satisfy the run.
     intel = tavily_intel.gather(list(GOALS.values()), api_key="k", endpoint="http://127.0.0.1:1/search", cache_path=cache)
     assert intel["ran"] and intel["sources"] == 3
+    assert intel["live"] is False and intel["cached"] is True       # marked as a cache fallback, not live
 
 
 def test_offline_degrades_without_key(tmp_path, monkeypatch):
     monkeypatch.delenv("TAVILY_API_KEY", raising=False)             # simulate no key anywhere
     intel = tavily_intel.gather(list(GOALS.values()), api_key="", cache_path=str(tmp_path / "none.json"))
     assert intel["ran"] is False and intel["sources"] == 0          # no crash, no intel
+    assert intel["live"] is False
     assert tavily_intel.brief_for(intel, "secret_leak") == ""
     assert tavily_intel.citation_for(intel, "secret_leak") is None

@@ -236,8 +236,8 @@ class AttackConsoleMonitor:
         t = self.t
         if e.get("ran"):
             sources = e.get("sources", 0)
-            cached_str = f" {t.DIM}[cached]{t.RESET}" if e.get("cached") else ""
-            self.log(f" {t.CYAN}ℹ{t.RESET} Threat Intel: {t.BOLD}{sources}{t.RESET} defensive references synchronized via Tavily{cached_str}")
+            how = f"{t.GREEN}fetched live{t.RESET} via Tavily" if e.get("live") else f"via Tavily {t.DIM}[cached]{t.RESET}"
+            self.log(f" {t.CYAN}ℹ{t.RESET} Threat Intel: {t.BOLD}{sources}{t.RESET} defensive references {how}")
         else:
             self.log(f" {t.DIM}ℹ Threat Intel: offline ({e.get('reason', 'no Tavily key')}){t.RESET}")
 

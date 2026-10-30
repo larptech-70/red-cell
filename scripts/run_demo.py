@@ -63,8 +63,8 @@ def show(e):
     t = e["type"]
     if t == "intel":
         if e["ran"]:
-            cached = " [cached]" if e.get("cached") else ""
-            print(f"Threat intel: {e['sources']} current source(s) via Tavily{cached}")
+            how = "fetched live via Tavily" if e.get("live") else "via Tavily [cached]"
+            print(f"Threat intel: {e['sources']} current source(s) {how}")
         else:
             print(f"Threat intel: offline ({e.get('reason', 'no Tavily key')})")
     elif t == "goal_start":

@@ -54,7 +54,8 @@ def build(results, usage: dict, *, target_name: str, hardened: bool, mode: str,
         "held": [r.goal.title for r in results if not r.landed],
         "usage": usage,
         "garak": garak,
-        "intel": {"ran": (intel or {}).get("ran", False), "sources": (intel or {}).get("sources", 0)},
+        "intel": {"ran": (intel or {}).get("ran", False), "sources": (intel or {}).get("sources", 0),
+                  "live": (intel or {}).get("live", False), "cached": (intel or {}).get("cached", False)},
     }
     if patches:
         rep["patches"] = {
@@ -149,7 +150,8 @@ def to_markdown(rep: dict) -> str:
            f"**{rep['goals_broken']} of {rep['goals_tried']} goals broken.**", ""]
     intel = rep.get("intel") or {}
     if intel.get("ran"):
-        out += [f"Threat intel: informed by {intel['sources']} current defensive source(s) via Tavily.", ""]
+        how = "fetched live via Tavily" if intel.get("live") else "via Tavily (cached)"
+        out += [f"Threat intel: informed by {intel['sources']} current defensive source(s) {how}.", ""]
     for f in rep["findings"]:
         out += [f"## {goal_title(f.get('id'), f['title'])}", f"Risk: {f['owasp']}. Broke in {f['turns_to_break']} turn(s). Reproduced on a fresh target.", "",
                 f"Evidence: {f['evidence']}", "", "Reproduce with these messages, in order:"]
@@ -331,7 +333,8 @@ def to_html(rep: dict, autoprint: bool = False) -> str:
     """
 
     intel = rep.get("intel") or {}
-    intel_str = f"Threat intelligence: informed by {intel.get('sources', 0)} current defensive source(s) via Tavily." if intel.get("ran") else "Threat intelligence: Tavily offline."
+    intel_how = "fetched live via Tavily" if intel.get("live") else "via Tavily (cached)"
+    intel_str = f"Threat intelligence: informed by {intel.get('sources', 0)} current defensive source(s) {intel_how}." if intel.get("ran") else "Threat intelligence: Tavily offline."
 
     script = "<script>addEventListener('load',()=>setTimeout(()=>print(),150))</script>" if autoprint else ""
 

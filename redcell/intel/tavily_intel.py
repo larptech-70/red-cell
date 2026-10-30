@@ -6,8 +6,9 @@ distilled results into the Nemotron attacker's planning. Each finding in the rep
 one authoritative citation URL from the same intel.
 
 Stdlib HTTP only, matching core/llm.py -- no new dependency. Needs TAVILY_API_KEY in .env;
-without it the module degrades to offline mode exactly like the Nemotron mock path (no intel,
-no crash). Results are cached to reports/intel.json so repeat demo runs are instant and free.
+with a key every run fetches FRESH results and falls back to the reports/intel.json cache only
+if the live fetch fails or returns nothing. Without a key the module serves that cache when
+present, otherwise it degrades to offline mode exactly like the Nemotron mock path (no crash).
 
 Tavily API (docs.tavily.com): POST https://api.tavily.com/search, bearer auth, JSON body
 {query, search_depth, max_results}; results[] items carry title, url, content, score.
@@ -79,56 +80,73 @@ def gather(goals, **kw) -> dict:
     """Traced wrapper around _gather (one optional LangSmith span; no key or headers recorded)."""
     with tracing.span("tavily intel", "tool", inputs={"goals": [g.id for g in goals]}) as sp:
         res = _gather(goals, **kw)
-        sp.end(outputs={"ran": res.get("ran"), "sources": res.get("sources", 0),
+        sp.end(outputs={"ran": res.get("ran"), "sources": res.get("sources", 0), "live": res.get("live"),
                         "urls": [h.get("url") for hits in (res.get("by_goal") or {}).values() for h in hits][:20]})
         return res
 
 
+def _read_cache(cache_path: str) -> dict | None:
+    """The last cached intel, or None if there is no usable cache."""
+    try:
+        return json.load(open(cache_path, encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
 def _gather(goals, *, api_key: str | None = None, endpoint: str | None = None,
-            cache_path: str | None = None, max_results: int = 3, force: bool = False,
-            emit=lambda e: None) -> dict:
+            cache_path: str | None = None, max_results: int = 3, emit=lambda e: None) -> dict:
     """Collect per-goal defensive threat intel for a run.
 
-    Returns {"ran": bool, "sources": int, "by_goal": {goal_id: [hit,...]}, "reason": str}.
-    Degrades to {"ran": False, ...} with no key or on any HTTP failure -- never raises.
-    Uses reports/intel.json when present (unless force) so a demo run spends nothing.
+    Returns {"ran": bool, "sources": int, "by_goal": {goal_id: [hit,...]}, "live": bool,
+    "cached": bool, "reason": str}. With a key, EVERY run fetches fresh from Tavily (live=True)
+    and refreshes reports/intel.json; it falls back to that cache (live=False, cached=True) only
+    when the live fetch fails or returns nothing. Without a key it serves the cache if present,
+    else offline mode. Never raises.
     """
     cache_path = cache_path or CACHE_PATH
-    if not force and os.path.exists(cache_path):
-        try:
-            cached = json.load(open(cache_path, encoding="utf-8"))
-            if cached.get("ran"):
-                emit({"type": "intel", "ran": True, "sources": cached.get("sources", 0), "cached": True})
-                return cached
-        except (OSError, ValueError):
-            pass
+    key = _api_key(api_key)
 
-    if not _api_key(api_key):
-        res = {"ran": False, "sources": 0, "by_goal": {},
-               "reason": "TAVILY_API_KEY not set; threat intel skipped (offline mode)"}
-        emit({"type": "intel", "ran": False, "sources": 0, "reason": res["reason"]})
+    if key:
+        by_goal: dict[str, list] = {}
+        total = errors = 0
+        for g in goals:
+            q = QUERIES.get(g.id) or f"{g.title} {g.owasp} mitigation defenses"
+            try:
+                hits = search(q, api_key=key, endpoint=endpoint, max_results=max_results)
+            except (urllib.error.URLError, urllib.error.HTTPError, ValueError, TimeoutError, OSError):
+                hits, errors = [], errors + 1
+            by_goal[g.id] = hits
+            total += len(hits)
+        if total:
+            res = {"ran": True, "sources": total, "by_goal": by_goal, "live": True, "cached": False,
+                   "generated": time.strftime("%Y-%m-%d %H:%M:%S"), "reason": ""}
+            try:
+                os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+                json.dump(res, open(cache_path, "w", encoding="utf-8"), indent=2)
+            except OSError:
+                pass
+            emit({"type": "intel", "ran": True, "sources": total, "cached": False, "live": True})
+            return res
+        # Live fetch failed or returned nothing -- fall back to the cache so the run still has intel.
+        cached = _read_cache(cache_path)
+        if cached and cached.get("ran"):
+            cached.update({"live": False, "cached": True})
+            emit({"type": "intel", "ran": True, "sources": cached.get("sources", 0), "cached": True, "live": False})
+            return cached
+        reason = "Tavily fetch failed and no cached intel available" if errors else "Tavily returned no results"
+        res = {"ran": False, "sources": 0, "by_goal": {}, "live": False, "cached": False, "reason": reason}
+        emit({"type": "intel", "ran": False, "sources": 0, "reason": reason})
         return res
 
-    by_goal: dict[str, list] = {}
-    total = 0
-    for g in goals:
-        q = QUERIES.get(g.id) or f"{g.title} {g.owasp} mitigation defenses"
-        try:
-            hits = search(q, api_key=api_key, endpoint=endpoint, max_results=max_results)
-        except (urllib.error.URLError, urllib.error.HTTPError, ValueError, TimeoutError, OSError):
-            hits = []
-        by_goal[g.id] = hits
-        total += len(hits)
-
-    res = {"ran": total > 0, "sources": total, "by_goal": by_goal,
-           "generated": time.strftime("%Y-%m-%d %H:%M:%S"),
-           "reason": "" if total else "Tavily returned no results"}
-    try:
-        os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-        json.dump(res, open(cache_path, "w", encoding="utf-8"), indent=2)
-    except OSError:
-        pass
-    emit({"type": "intel", "ran": res["ran"], "sources": total, "cached": False})
+    # No key: serve the committed/cached intel when present, else offline mode.
+    cached = _read_cache(cache_path)
+    if cached and cached.get("ran"):
+        cached.update({"live": False, "cached": True})
+        emit({"type": "intel", "ran": True, "sources": cached.get("sources", 0), "cached": True, "live": False})
+        return cached
+    res = {"ran": False, "sources": 0, "by_goal": {}, "live": False, "cached": False,
+           "reason": "TAVILY_API_KEY not set; threat intel skipped (offline mode)"}
+    emit({"type": "intel", "ran": False, "sources": 0, "reason": res["reason"]})
     return res
 
 
