@@ -19,7 +19,7 @@ services:
     healthCheckPath: /api/info
     envVars:
       - key: REDCELL_TAG
-        value: v1.3-submission
+        value: v2.0-submission
       - key: REDCELL_HOST
         value: 0.0.0.0
       - key: REDCELL_PUBLIC
